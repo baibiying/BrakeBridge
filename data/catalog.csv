@@ -1,0 +1,5 @@
+﻿catalog_id,series,position,source_name,outer_arc_mm,width_mm,thickness_mm,holes,source_file,pdf_page,printed_page
+GY-DEMO-01,T850,front,T850前刹,207,140,16,10,冠隆产品册.pdf,12,22
+GY-DEMO-02,T850,rear,T850后刹,207,200,16,14,冠隆产品册.pdf,12,22
+GY-DEMO-03,新T850,front,新T850前刹,208,150,16,10,冠隆产品册.pdf,12,22
+GY-DEMO-04,新T850,rear,新T850后刹,208,220,16,16,冠隆产品册.pdf,12,22

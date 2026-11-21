@@ -1,0 +1,51 @@
+{% from "macros.html" import icon %}
+<!doctype html>
+<html lang="zh-CN" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} · 冠英外贸工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tabler/tabler.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
+  <script defer src="{{ url_for('static', filename='vendor/tabler/tabler.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='workspace.js') }}"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <div class="admin-shell">
+    <aside class="navbar navbar-vertical navbar-expand-lg app-sidebar" aria-label="主导航">
+      <div class="container-fluid">
+        <a class="workspace-brand" href="{{ url_for('buyer_list') }}">
+          <span class="workspace-mark" aria-hidden="true">冠</span>
+          <span><strong>冠英外贸</strong><small>BrakeBridge</small></span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#workspace-nav"
+                aria-controls="workspace-nav" aria-expanded="false" aria-label="展开主导航">{{ icon('menu-2') }}</button>
+        <div class="collapse navbar-collapse" id="workspace-nav">
+          <nav class="navbar-nav">
+            <a class="nav-link {% if request.endpoint == 'buyer_list' %}active{% endif %}"
+               href="{{ url_for('buyer_list') }}" {% if request.endpoint == 'buyer_list' %}aria-current="page"{% endif %}>
+              {{ icon('building-community') }} 买家名单</a>
+            <a class="nav-link {% if request.endpoint == 'inbox_list' %}active{% endif %}"
+               href="{{ url_for('inbox_list') }}" {% if request.endpoint == 'inbox_list' %}aria-current="page"{% endif %}>
+              {{ icon('inbox') }} Facebook 询盘</a>
+          </nav>
+        </div>
+      </div>
+    </aside>
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <span class="breadcrumbs">销售管理 {{ icon('chevron-right') }} <strong>{% block breadcrumb %}{% endblock %}</strong></span>
+        <span class="service-state"><span class="state-dot {{ 'is-ready' if model_online else '' }}"></span>{{ '模型已配置' if model_online else '规则模式' }}</span>
+      </header>
+      <main id="main" class="admin-content">
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+        <div class="alert {{ 'alert-warning' if category == 'error' else 'alert-success' }}"
+             role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
+        {% endfor %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+record_id,company,country,domain,source_type,source_ref,as_of,source_text,data_kind,contact_name,contact_email,customer_source,importance,address,phone,description
+HQ-D01,海湾商用车制动配件,阿联酋,gulf-brakes.example,trade,HQ-DEMO-TRADE-001,2026-11-06,海湾商用车制动配件为收货人，从中国采购重卡鼓式刹车衬片。,synthetic,采购部,buying@gulf-brakes.example,海关记录,5,海湾演示工业园 A-12,+1 202-555-0101,重卡制动配件进口与区域分销
+HQ-D02,海湾商用车制动配件,阿联酋,gulf-brakes.example,message,HQ-DEMO-MSG-002,2026-11-18,我们已到中国，也已报名 12 月 2 日的展会，可以约时间看样品。,synthetic,采购部,buying@gulf-brakes.example,海关记录,5,海湾演示工业园 A-12,+1 202-555-0101,重卡制动配件进口与区域分销
+HQ-D03,金桥卡车制动进口,墨西哥,golden-bridge-brakes.example,trade,HQ-DEMO-TRADE-003,2026-11-08,金桥卡车制动进口为进口商，从中国采购商用车盘式刹车片和制动蹄。,synthetic,进口采购部,buying@golden-bridge-brakes.example,海关记录,4,金桥演示物流园 B-24,+1 202-555-0102,有中国采购记录，待确认展会行程
+HQ-D04,南岭卡车配件分销,巴西,southridge-parts.example,website,HQ-DEMO-WEB-004,2026-11-10,企业简介显示主营卡车盘式刹车片和鼓式刹车衬片，面向当地维修门店供货。,synthetic,业务部,info@southridge-parts.example,企业官网,3,南岭演示商业区 C-16,+1 202-555-0103,向本地维修门店供货
+HQ-D05,沧湾汽配贸易,阿联酋,bay-general-parts.example,trade,HQ-DEMO-TRADE-005,2026-11-12,沧湾汽配贸易是收货人，从中国采购通用汽车配件，货物描述未细分品类。,synthetic,业务部,info@bay-general-parts.example,海关记录,2,沧湾演示仓储区 D-07,+1 202-555-0104,综合汽配贸易商，待核对采购品类
+HQ-D06,高原乘用车配件,智利,highland-passenger.example,website,HQ-DEMO-WEB-006,2026-11-14,企业简介显示仅经营乘用车滤清器和座椅配件。,synthetic,客户服务部,hello@highland-passenger.example,企业官网,1,高原演示交易中心 E-31,+1 202-555-0105,乘用车耗材经销
+HQ-D01,海湾商用车制动配件,阿联酋,gulf-brakes.example,trade,HQ-DEMO-TRADE-001,2026-11-06,海湾商用车制动配件为收货人，从中国采购重卡鼓式刹车衬片。,synthetic,采购部,buying@gulf-brakes.example,海关记录,5,海湾演示工业园 A-12,+1 202-555-0101,重卡制动配件进口与区域分销
+HQ-D07,蓝岭重卡供应,美国,blue-ridge.example,trade,HQ-DEMO-TRADE-007,2026-11-12,蓝岭重卡供应是收货人，从中国采购商用车盘式刹车片。,synthetic,采购部,contact@blue-ridge.example,海关记录,5,美国演示工业园 07 号,+1 202-555-0107,客户档案示例
+HQ-D47,蓝岭重卡供应,美国,blue-ridge.example,message,HQ-DEMO-MSG-007,2026-11-19,我们已报名 12 月 2 日展会，希望确认会面时间。,synthetic,采购部,contact@blue-ridge.example,海关记录,5,美国演示工业园 07 号,+1 202-555-0107,客户档案示例
+HQ-D08,枫湾制动配件,加拿大,maple-bay.example,trade,HQ-DEMO-TRADE-008,2026-11-12,枫湾制动配件作为采购方，从中国采购卡车制动蹄及鼓式刹车片。,synthetic,采购部,contact@maple-bay.example,海关记录,4,加拿大演示工业园 08 号,+1 202-555-0108,客户档案示例
+HQ-D09,安塔卡车供应,哥伦比亚,anta-truck.example,website,HQ-DEMO-WEBSITE-009,2026-11-12,安塔卡车供应官网展示商用车制动蹄和卡车刹车片，向当地维修站供货。,synthetic,业务部,contact@anta-truck.example,企业官网,3,哥伦比亚演示工业园 09 号,+1 202-555-0109,客户档案示例
+HQ-D10,银峰汽车零件,秘鲁,silver-peak.example,trade,HQ-DEMO-TRADE-010,2026-11-12,银峰汽车零件为进口商，从中国采购通用汽配，货描未提供明确产品。,synthetic,采购部,contact@silver-peak.example,海关记录,3,秘鲁演示工业园 10 号,+1 202-555-0110,客户档案示例
+HQ-D11,南原车队供应,阿根廷,south-field.example,trade,HQ-DEMO-TRADE-011,2026-11-12,南原车队供应是收货人，从中国采购商用车盘式刹车片。,synthetic,采购部,contact@south-field.example,海关记录,5,阿根廷演示工业园 11 号,+1 202-555-0111,客户档案示例
+HQ-D51,南原车队供应,阿根廷,south-field.example,message,HQ-DEMO-MSG-011,2026-11-19,我们已报名 12 月 2 日展会，希望确认会面时间。,synthetic,采购部,contact@south-field.example,海关记录,5,阿根廷演示工业园 11 号,+1 202-555-0111,客户档案示例
+HQ-D12,东岸车辆用品,乌拉圭,shore-vehicle.example,website,HQ-DEMO-WEBSITE-012,2026-11-12,东岸车辆用品仅经营乘用车座套、脚垫和内饰。,synthetic,业务部,contact@shore-vehicle.example,企业官网,1,乌拉圭演示工业园 12 号,+1 202-555-0112,客户档案示例
+HQ-D13,莱茵峰重卡制动,德国,rhine-peak.example,trade,HQ-DEMO-TRADE-013,2026-11-12,莱茵峰重卡制动是收货人，从中国采购商用车盘式刹车片。,synthetic,采购部,contact@rhine-peak.example,海关记录,5,德国演示工业园 13 号,+1 202-555-0113,客户档案示例
+HQ-D53,莱茵峰重卡制动,德国,rhine-peak.example,message,HQ-DEMO-MSG-013,2026-11-19,我们已报名 12 月 2 日展会，希望确认会面时间。,synthetic,采购部,contact@rhine-peak.example,海关记录,5,德国演示工业园 13 号,+1 202-555-0113,客户档案示例
+HQ-D14,蔚岸商用车零件,法国,azure-coast.example,website,HQ-DEMO-WEBSITE-014,2026-11-12,蔚岸商用车零件官网展示商用车制动蹄和卡车刹车片，向当地维修站供货。,synthetic,业务部,contact@azure-coast.example,企业官网,3,法国演示工业园 14 号,+1 202-555-0114,客户档案示例
+HQ-D15,港星汽配贸易,西班牙,port-star.example,website,HQ-DEMO-WEBSITE-015,2026-11-12,港星汽配贸易主营车辆维修与备件分销。产品目录及近期采购情况未披露。,synthetic,业务部,contact@port-star.example,企业官网,2,西班牙演示工业园 15 号,+1 202-555-0115,客户档案示例
+HQ-D16,阿尔诺卡车制动,意大利,arno-brake.example,trade,HQ-DEMO-TRADE-016,2026-11-12,阿尔诺卡车制动作为采购方，从中国采购卡车制动蹄及鼓式刹车片。,synthetic,采购部,contact@arno-brake.example,海关记录,4,意大利演示工业园 16 号,+1 202-555-0116,客户档案示例
+HQ-D17,维桥重卡采配,波兰,vista-bridge.example,trade,HQ-DEMO-TRADE-017,2026-11-12,维桥重卡采配是进口商，从中国采购重卡鼓式刹车衬片。,synthetic,采购部,contact@vista-bridge.example,海关记录,4,波兰演示工业园 17 号,+1 202-555-0117,客户档案示例
+HQ-D57,维桥重卡采配,波兰,vista-bridge.example,message,HQ-DEMO-MSG-017,2026-11-19,我们计划来华，是否到展还在确认。,synthetic,采购部,contact@vista-bridge.example,海关记录,4,波兰演示工业园 17 号,+1 202-555-0117,客户档案示例
+HQ-D18,低地车轮用品,荷兰,lowland-wheel.example,website,HQ-DEMO-WEBSITE-018,2026-11-12,低地车轮用品仅经营乘用车座套、脚垫和内饰。,synthetic,业务部,contact@lowland-wheel.example,企业官网,1,荷兰演示工业园 18 号,+1 202-555-0118,客户档案示例
+HQ-D19,北岬货车零件,英国,north-cape.example,trade,HQ-DEMO-TRADE-019,2026-11-12,北岬货车零件为收货人，已采购重卡盘式刹车片，暂未找到原产国信息。,synthetic,采购部,contact@north-cape.example,海关记录,4,英国演示工业园 19 号,+1 202-555-0119,客户档案示例
+HQ-D20,海峡联运配件,土耳其,strait-parts.example,trade,HQ-DEMO-TRADE-020,2026-11-12,海峡联运配件为进口商，从中国采购通用汽配，货描未提供明确产品。,synthetic,采购部,contact@strait-parts.example,海关记录,3,土耳其演示工业园 20 号,+1 202-555-0120,客户档案示例
+HQ-D21,沙岭重卡零件,沙特阿拉伯,dune-ridge.example,trade,HQ-DEMO-TRADE-021,2026-11-12,沙岭重卡零件是收货人，从中国采购商用车盘式刹车片。,synthetic,采购部,contact@dune-ridge.example,海关记录,5,沙特阿拉伯演示工业园 21 号,+1 202-555-0121,客户档案示例
+HQ-D61,沙岭重卡零件,沙特阿拉伯,dune-ridge.example,message,HQ-DEMO-MSG-021,2026-11-19,我们已报名 12 月 2 日展会，希望确认会面时间。,synthetic,采购部,contact@dune-ridge.example,海关记录,5,沙特阿拉伯演示工业园 21 号,+1 202-555-0121,客户档案示例
+HQ-D22,沙河车辆用品,埃及,sand-river.example,website,HQ-DEMO-WEBSITE-022,2026-11-12,沙河车辆用品主营车辆维修与备件分销。产品目录及近期采购情况未披露。,synthetic,业务部,contact@sand-river.example,企业官网,2,埃及演示工业园 22 号,+1 202-555-0122,客户档案示例
+HQ-D23,海岬制动供应,南非,cape-braking.example,trade,HQ-DEMO-TRADE-023,2026-11-12,海岬制动供应作为采购方，从中国采购卡车制动蹄及鼓式刹车片。,synthetic,采购部,contact@cape-braking.example,海关记录,4,南非演示工业园 23 号,+1 202-555-0123,客户档案示例
+HQ-D24,东原车队服务,肯尼亚,eastern-plain.example,website,HQ-DEMO-WEBSITE-024,2026-11-12,东原车队服务官网展示商用车制动蹄和卡车刹车片，向当地维修站供货。,synthetic,业务部,contact@eastern-plain.example,企业官网,3,肯尼亚演示工业园 24 号,+1 202-555-0124,客户档案示例
+HQ-D25,西麓汽车百货,摩洛哥,western-slope.example,website,HQ-DEMO-WEBSITE-025,2026-11-12,西麓汽车百货仅经营乘用车座套、脚垫和内饰。,synthetic,业务部,contact@western-slope.example,企业官网,1,摩洛哥演示工业园 25 号,+1 202-555-0125,客户档案示例
+HQ-D26,群岛商用车制动,印度尼西亚,archipelago.example,trade,HQ-DEMO-TRADE-026,2026-11-12,群岛商用车制动是进口商，从中国采购重卡鼓式刹车衬片。,synthetic,采购部,contact@archipelago.example,海关记录,4,印度尼西亚演示工业园 26 号,+1 202-555-0126,客户档案示例
+HQ-D66,群岛商用车制动,印度尼西亚,archipelago.example,message,HQ-DEMO-MSG-026,2026-11-19,我们计划来华，是否到展还在确认。,synthetic,采购部,contact@archipelago.example,海关记录,4,印度尼西亚演示工业园 26 号,+1 202-555-0126,客户档案示例
+HQ-D27,金叶卡车配件,泰国,gold-leaf.example,trade,HQ-DEMO-TRADE-027,2026-11-12,金叶卡车配件为收货人，已采购重卡盘式刹车片，暂未找到原产国信息。,synthetic,采购部,contact@gold-leaf.example,海关记录,4,泰国演示工业园 27 号,+1 202-555-0127,客户档案示例
+HQ-D28,海榕车辆配件,马来西亚,sea-banyan.example,trade,HQ-DEMO-TRADE-028,2026-11-12,海榕车辆配件为进口商，从中国采购通用汽配，货描未提供明确产品。,synthetic,采购部,contact@sea-banyan.example,海关记录,3,马来西亚演示工业园 28 号,+1 202-555-0128,客户档案示例
+HQ-D29,绿港车队用品,越南,green-port.example,website,HQ-DEMO-WEBSITE-029,2026-11-12,绿港车队用品主营车辆维修与备件分销。产品目录及近期采购情况未披露。,synthetic,业务部,contact@green-port.example,企业官网,2,越南演示工业园 29 号,+1 202-555-0129,客户档案示例
+HQ-D30,季风重卡零件,印度,monsoon-parts.example,trade,HQ-DEMO-TRADE-030,2026-11-12,季风重卡零件作为采购方，从中国采购卡车制动蹄及鼓式刹车片。,synthetic,采购部,contact@monsoon-parts.example,海关记录,4,印度演示工业园 30 号,+1 202-555-0130,客户档案示例
+HQ-D31,南礁制动供应,澳大利亚,south-reef.example,website,HQ-DEMO-WEBSITE-031,2026-11-12,南礁制动供应官网展示商用车制动蹄和卡车刹车片，向当地维修站供货。,synthetic,业务部,contact@south-reef.example,企业官网,3,澳大利亚演示工业园 31 号,+1 202-555-0131,客户档案示例

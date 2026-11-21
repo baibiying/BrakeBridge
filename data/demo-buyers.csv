@@ -1,0 +1,7 @@
+record_id,company,country,domain,source_type,source_ref,as_of,source_text,data_kind,contact_name,contact_email
+L01,海湾重卡配件,阿联酋,a.example,trade,DEMO-TRADE-01,2026-11-10,海湾重卡配件为收货人，从中国采购重卡鼓式刹车片。,synthetic,采购部,purchasing@a.example
+L02,圣保罗商用车配件,巴西,b.example,website,DEMO-WEB-02,2026-11-11,主营卡车盘式刹车片和鼓式刹车衬片，面向当地维修商供货。,synthetic,采购部,purchasing@b.example
+L03,安第斯乘用车配件,智利,c.example,website,DEMO-WEB-03,2026-11-11,仅经营乘用车滤清器和保养耗材。,synthetic,,
+L04,北湾汽配贸易,阿联酋,d.example,trade,DEMO-TRADE-04,2026-11-09,记录显示该公司是收货人，从中国采购通用汽车零件，货描未细分品类。,synthetic,业务部,sales@d.example
+L05,海湾重卡配件,阿联酋,a.example,message,DEMO-MSG-05,2026-11-12,我们已报名 12 月的汽配展，方便约个时间见面吗？,synthetic,,
+L01,海湾重卡配件,阿联酋,a.example,trade,DEMO-TRADE-01,2026-11-10,海湾重卡配件为收货人，从中国采购重卡鼓式刹车片。,synthetic,采购部,purchasing@a.example

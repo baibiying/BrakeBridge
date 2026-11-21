@@ -1,0 +1,131 @@
+{% extends "layout.html" %}
+{% from "macros.html" import icon, status, upload, detail_tabs, draft_controls, source, scorecard %}
+{% block title %}买家名单{% endblock %}
+{% block breadcrumb %}买家名单{% endblock %}
+{% block content %}
+<header class="workbench-heading">
+  <div><h1>买家名单</h1><p>核对采购线索，安排展会邀约。</p></div>
+  <div class="workbench-actions">
+    <a class="btn" href="{{ url_for('export', kind='buyers') }}">{{ icon('download') }} 导出跟进表</a>
+    {{ upload(url_for('import_buyers'), '.csv,.xlsx', url_for('template_download', kind='buyers'), '导入名单', csrf_token()) }}
+  </div>
+</header>
+<div class="workbench-grid">
+  <section class="card records-card" aria-label="买家列表">
+    <div class="record-filters">
+      <nav class="nav nav-underline record-tabs" aria-label="买家优先级">
+        <a class="nav-link {{ '' if tier_filter else 'active' }}" href="{{ url_for('buyer_list', q=query, kind=kind_filter) }}" {% if not tier_filter %}aria-current="page"{% endif %}>全部 <span class="tab-count">{{ all_entries|length }}</span></a>
+        {% for key, label in tiers.items() %}
+        <a class="nav-link {{ 'active' if tier_filter==key else '' }}" href="{{ url_for('buyer_list', q=query, kind=kind_filter, tier=key) }}" {% if tier_filter==key %}aria-current="page"{% endif %}>{{ label }} <span class="tab-count">{{ all_entries|selectattr('tier','equalto',key)|list|length }}</span></a>
+        {% endfor %}
+      </nav>
+      <form class="filter-form" method="get" action="{{ url_for('buyer_list') }}">
+        <input type="hidden" name="tier" value="{{ tier_filter }}">
+        <label class="input-icon search-field"><span class="input-icon-addon">{{ icon('search') }}</span>
+          <input class="form-control" aria-label="搜索买家或国家" name="q" value="{{ query }}" placeholder="搜索买家或国家">
+        </label>
+        <select class="form-select source-filter" aria-label="筛选数据来源" name="kind">
+          <option value="">全部来源</option>
+          {% for key, label in kinds.items() %}<option value="{{ key }}" {% if kind_filter==key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <button class="btn" type="submit">筛选</button>
+      </form>
+    </div>
+    {% if entries %}
+    <div class="table-responsive"><table class="table table-vcenter card-table record-table">
+      <thead><tr><th scope="col">买家</th><th scope="col">评分</th><th scope="col">优先级</th><th scope="col" class="wide-col">跟进</th><th scope="col" class="row-arrow"><span class="visually-hidden">查看</span></th></tr></thead>
+      <tbody>
+      {% for entry in entries %}{% set b = entry.buyer %}{% set selected = detail and detail.buyer.id == b.id %}
+      <tr class="record-row {{ 'is-selected' if selected else '' }}">
+        <td><a class="record-link" href="{{ url_for('buyer_list', buyer=b.id, q=query, tier=tier_filter, kind=kind_filter) }}#record"
+            {% if selected %}aria-current="true"{% endif %}>{{ b.company }}</a>
+            <span class="record-meta">{{ b.country or '市场待核' }} · {{ kinds[b.data_kind] }}</span></td>
+        <td class="list-score {{ entry.score.tier }}">{{ entry.score.total }}</td>
+        <td>{{ status(tiers[entry.tier], entry.tier) }}</td>
+        <td class="wide-col text-secondary">{{ '邀请函就绪' if b.draft and b.status == 'new' else buyer_states[b.status] }}</td>
+        <td class="row-arrow">{{ icon('chevron-right') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="card-footer table-foot">共 {{ entries|length }} 家买家</div>
+    {% else %}
+    <div class="empty-records"><h2>{{ '没有匹配的买家' if query or tier_filter or kind_filter else '还没有买家记录' }}</h2><p>{{ '可调整筛选条件。' if query or tier_filter or kind_filter else '导入 Excel 或 CSV 名单后查看。' }}</p></div>
+    {% endif %}
+  </section>
+  <section class="card detail-card" id="record" aria-label="买家详情">
+  {% if detail %}
+    {% set b = detail.buyer %}
+    <header class="detail-head">
+      <div><p class="detail-label">{{ b.country or '市场待核' }} · {{ kinds[b.data_kind] }}</p><h2>{{ b.company }}</h2></div>
+      {{ status(tiers[detail.tier], detail.tier) }}
+    </header>
+    <dl class="detail-facts">
+      <div><dt>跟进状态</dt><dd>{{ buyer_states[b.status] }}</dd></div>
+      <div><dt>负责人</dt><dd>{{ b.owner or '待认领' }}</dd></div>
+      <div><dt>下次跟进</dt><dd>{{ b.follow_up or '—' }}</dd></div>
+    </dl>
+    {% if b.draft %}
+    <section class="action-strip">
+      <div><strong>展会邀请函已备好</strong><span>{{ b.contact_email or '联系邮箱待补' }}</span></div>
+      <button class="btn btn-outline-primary btn-sm" type="button" data-open-tab="follow-tab">查看邀请函</button>
+    </section>
+    {% endif %}
+    {{ detail_tabs(follow_tab, '采购证据', '邀约与跟进') }}
+    <div class="tab-content">
+      <section class="tab-pane {{ '' if follow_tab else 'active show' }}" id="record-overview" role="tabpanel" aria-labelledby="overview-tab">
+        <div class="detail-body">
+          {{ scorecard(detail.score, '买家优先评分', false) }}
+          {% if model_online %}
+          <form class="section-actions" method="post" action="{{ url_for('buyer_action', buyer_id=b.id, action='assess') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-sm" type="submit">AI 检查品类</button></form>
+          {% endif %}
+          <table class="table evidence-table">
+            <thead><tr><th scope="col">核验项</th><th scope="col">结论</th><th scope="col">依据</th></tr></thead><tbody>
+            {% for key, label in axes.items() %}{% set finding = detail.axes[key] %}
+            <tr><th scope="row">{{ label }}</th><td>{{ status(findings[finding.state] if finding else '待核', finding.state if finding else '') }}</td>
+              <td>{% if finding %}<a class="evidence-link" href="#evidence-{{ evidence_refs[key] }}">依据 {{ evidence_refs[key] }}</a>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody></table>
+          {% for evidence in evidence_groups %}
+          <article class="buyer-evidence" id="evidence-{{ evidence.number }}">
+            <div class="evidence-meta"><strong>依据 {{ evidence.number }}</strong>{{ source(evidence.ref, safe_link) }}<span>{{ evidence.date }}</span></div>
+            <p dir="auto">{{ evidence.quote }}</p>
+          </article>
+          {% endfor %}
+          <details class="records-disclosure"><summary>全部来源 <span>{{ detail.evidence|length }}</span></summary>
+            {% for e in detail.evidence %}<div class="source-entry"><p dir="auto">{{ e.source_text }}</p>{{ source(e.source_ref, safe_link) }} <span class="text-secondary">{{ e.as_of }} · {{ kinds[e.data_kind] }}</span></div>{% endfor %}
+          </details>
+          {% if related %}
+          <details class="records-disclosure"><summary>相似买家 <span>{{ related|length }}</span></summary>
+            {% for buyer, evidence, procurement in related %}
+            <div class="source-entry"><a href="{{ url_for('buyer_list', buyer=buyer.id) }}">{{ buyer.company }}</a>
+              <span class="text-secondary"> · {{ '有采购证据' if procurement else '采购能力待核' }}</span><p dir="auto">{{ evidence.quote }}</p></div>
+            {% endfor %}
+          </details>
+          {% endif %}
+          {% if linked %}
+          <details class="records-disclosure"><summary>关联的 Facebook 询盘 <span>{{ linked|length }}</span></summary>
+            {% for message in linked %}<div class="source-entry"><a href="{{ url_for('inbox_list', message=message.id) }}">{{ message.body|truncate(100) }}</a>
+              <p class="text-secondary">{{ inbox_states[message.status] }} · {{ display_time(message.received_at) }}</p></div>{% endfor %}
+          </details>
+          {% endif %}
+        </div>
+      </section>
+      <section class="tab-pane {{ 'active show' if follow_tab else '' }}" id="record-follow" role="tabpanel" aria-labelledby="follow-tab">
+        <div class="detail-body">
+          <div class="section-actions invite-actions">
+            {% if mailto %}<a class="btn btn-primary btn-sm" href="{{ mailto }}">打开邮件草稿</a>{% endif %}
+            {% if b.draft %}<a class="btn btn-sm" href="{{ url_for('invitation', buyer_id=b.id) }}">下载邀请函</a>{% endif %}
+            <form method="post" action="{{ url_for('buyer_action', buyer_id=b.id, action='invite') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-outline-primary btn-sm" type="submit">{{ '重新生成' if b.draft else '生成英文邀请函' }}</button></form>
+          </div>
+          {{ draft_controls(b, 'buyer_action', {'buyer_id': b.id}, '邀约草稿', buyer_states, tiers, csrf_token()) }}
+        </div>
+      </section>
+    </div>
+  {% else %}
+    <div class="empty-records empty-details">{{ icon('building-community') }}<h2>买家详情</h2><p>选择一条买家记录查看详情。</p></div>
+  {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "layout.html" %}
+{% from "macros.html" import icon, status as state, upload, detail_tabs, draft_controls, source, dataset_select, scorecard %}
+{% block title %}Facebook 询盘{% endblock %}
+{% block breadcrumb %}Facebook 询盘{% endblock %}
+{% block content %}
+<header class="workbench-heading">
+  <div><h1>Facebook 询盘</h1><p>查看产品帖留言，分配询盘和跟进回复。</p></div>
+  <div class="workbench-actions">
+    <a class="btn" href="{{ url_for('export', kind='inbox') }}">{{ icon('download') }} 导出互动</a>
+    <form method="post" action="{{ url_for('sync_comments') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button class="btn" type="submit" {% if not facebook_ready %}disabled title="配置 Page、帖子 ID 和令牌后可用"{% endif %}>{{ icon('refresh') }} 同步帖子</button>
+    </form>
+    {{ upload(url_for('import_messages'), '.csv', url_for('template_download', kind='comments'), '导入评论', csrf_token()) }}
+  </div>
+</header>
+<div class="workbench-grid">
+  <section class="card records-card" aria-label="询盘列表">
+    <div class="record-filters">
+      <nav class="nav nav-underline record-tabs" aria-label="询盘状态">
+        <a class="nav-link {{ '' if status else 'active' }}" href="{{ url_for('inbox_list', q=query) }}" {% if not status %}aria-current="page"{% endif %}>全部 <span class="tab-count">{{ all_messages|length }}</span></a>
+        {% for key, label in inbox_states.items() %}
+        <a class="nav-link {{ 'active' if status==key else '' }}" href="{{ url_for('inbox_list', q=query, status=key) }}" {% if status==key %}aria-current="page"{% endif %}>{{ label }} <span class="tab-count">{{ all_messages|selectattr('status','equalto',key)|list|length }}</span></a>
+        {% endfor %}
+      </nav>
+      <div class="automation-mode">
+        {{ state('自动回复已开启' if auto_reply_ready else '首回复草稿模式', 'supported' if auto_reply_ready else '') }}
+        {% if auto_reply_enabled and not auto_reply_ready %}<span>等待配置模型或授权主页</span>{% endif %}
+      </div>
+      <div class="filter-form">
+        <form class="inbox-search" method="get" action="{{ url_for('inbox_list') }}">
+          <input type="hidden" name="status" value="{{ status }}">
+          <label class="input-icon search-field"><span class="input-icon-addon">{{ icon('search') }}</span>
+            <input class="form-control" aria-label="搜索评论、买家或编号" name="q" value="{{ query }}" placeholder="搜索评论、买家或编号"></label>
+          <button class="btn" type="submit">筛选</button>
+        </form>
+        <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#comment-modal">{{ icon('plus') }} 粘贴评论</button>
+      </div>
+    </div>
+    {% if messages %}
+    <div class="table-responsive"><table class="table table-vcenter card-table record-table inbox-table">
+      <thead><tr><th scope="col">评论</th><th scope="col">评分</th><th scope="col">意向</th><th scope="col" class="wide-col">处理状态</th><th scope="col" class="row-arrow"><span class="visually-hidden">查看</span></th></tr></thead>
+      <tbody>
+      {% for row in messages %}{% set parsed = assessments[row.id] %}{% set tier = row.override or parsed.tier %}
+      {% set selected = detail and detail.id==row.id %}
+      <tr class="record-row {{ 'is-selected' if selected else '' }}">
+        <td><a class="record-link comment-link" href="{{ url_for('inbox_list', message=row.id, status=status, q=query) }}#record" {% if selected %}aria-current="true"{% endif %}>{{ row.body }}</a>
+        <span class="record-meta">{{ row.company or '身份待核' }} · {{ display_time(row.received_at)[5:] }}</span></td>
+        <td class="list-score {{ parsed.score.tier }}">{{ parsed.score.total }}</td>
+        <td>{{ state(intents[tier], tier) }}</td><td class="wide-col text-secondary">{{ reply_stages[row.reply_stage] if row.reply_stage else inbox_states[row.status] }}</td><td class="row-arrow">{{ icon('chevron-right') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="card-footer table-foot">共 {{ messages|length }} 条评论</div>
+    {% else %}
+    <div class="empty-records"><h2>{{ '没有匹配的评论' if query or status else '还没有评论' }}</h2><p>{{ '可调整筛选条件。' if query or status else '粘贴产品帖留言，或导入评论 CSV。' }}</p></div>
+    {% endif %}
+  </section>
+  <section class="card detail-card" id="record" aria-label="询盘详情">
+  {% if detail %}
+    {% set m = detail %}{% set tier = m.override or analysis.tier %}
+    <header class="detail-head">
+      <div><p class="detail-label">{{ kinds[m.data_kind] }} · {{ transports[m.transport] }} · {{ m.external_id }}</p><h2>{{ m.company or analysis.intent }}</h2></div>
+      {{ state(intents[tier], tier) }}
+    </header>
+    <dl class="detail-facts">
+      <div><dt>询盘类型</dt><dd>{{ analysis.intent }}</dd></div>
+      <div><dt>处理状态</dt><dd>{{ inbox_states[m.status] }}</dd></div>
+      <div><dt>负责人</dt><dd>{{ m.owner or '待认领' }}</dd></div>
+    </dl>
+    {% if m.reply_stage or m.draft and tier == 'high' %}
+    <section class="action-strip {{ 'needs-review' if m.reply_stage in ('attention', 'uncertain') else '' }}"
+             {% if m.reply_stage in ('queued', 'preparing', 'sending') %}data-reply-status="{{ url_for('reply_status', message_id=m.id) }}"{% endif %}>
+      <div aria-live="polite"><strong data-reply-label>{{ reply_stages[m.reply_stage] if m.reply_stage else '首回复草稿已备好' }}</strong>
+        <span data-reply-note>{{ m.reply_note or ('下一步：人工核实采购需求' if m.reply_stage == 'sent' else '下一步：查看回复和待核实信息') }}</span></div>
+      <button class="btn btn-outline-primary btn-sm" type="button" data-open-tab="follow-tab" data-reply-action>{{ '继续跟进' if m.reply_stage == 'sent' else '查看回复' }}</button>
+    </section>
+    {% endif %}
+    {{ detail_tabs(follow_tab, '留言与规格', '回复与跟进') }}
+    <div class="tab-content">
+      <section class="tab-pane {{ '' if follow_tab else 'active show' }}" id="record-overview" role="tabpanel" aria-labelledby="overview-tab">
+        <div class="detail-body">
+          <div class="detail-section-head"><h3>评论原文</h3>
+          {% if model_online %}
+          <form method="post" action="{{ url_for('message_action', message_id=m.id, action='analyze') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-sm" type="submit">用 AI 分析</button></form>
+          {% endif %}</div>
+          {% for msg in thread %}
+          <article class="comment-entry {{ 'current' if msg.id==m.id else '' }}">
+            <div class="evidence-meta"><time datetime="{{ msg.received_at }}">{{ display_time(msg.received_at) }}</time>{{ source(msg.source_ref, safe_link) }}</div>
+            <p dir="auto">{{ msg.body }}</p>
+          </article>
+          {% endfor %}
+          {{ scorecard(analysis.score, '采购意向评分') }}
+          <div class="detail-section-head mt-3"><h3>需求信息</h3><span class="text-secondary">{{ '模型提取' if analysis.mode == 'ai' else '规则提取' }}</span></div>
+          <dl class="requirements-grid">
+            {% for key in ('product','code','quantity','position','width_mm','holes','company','country','axle','material','destination') %}
+            {% if combined.get(key) or key in ('product','code','quantity','company') %}
+            <div><dt>{{ fields_labels[key] }}</dt><dd>
+              {% if key == 'position' %}{{ {'front':'前刹','rear':'后刹'}.get(combined.get(key), combined.get(key)) or '待核' }}
+              {% elif key == 'quantity' %}{{ combined.get(key) or '待核' }} {{ {'sets':'套','set':'套','pcs':'件','pieces':'件','pairs':'对'}.get(combined.get('unit'), combined.get('unit','')) }}
+              {% else %}{{ combined.get(key) or '待核' }}{% endif %}
+              {% if key in conflicts %}<span class="text-warning"> · 待确认</span>{% endif %}
+            </dd></div>
+            {% endif %}{% endfor %}
+          </dl>
+          {% if candidates or question %}
+          <section class="catalog-results">
+            <div class="detail-section-head"><h3>产品目录候选</h3><a class="evidence-link" href="{{ url_for('export_quote', message_id=m.id) }}">{{ icon('download') }} 待核价单</a></div>
+            {% for item in candidates %}
+            <div class="candidate"><strong>{{ item.source_name }}</strong><span>{{ item.outer_arc_mm }} × {{ item.width_mm }} × {{ item.thickness_mm }} mm · {{ item.holes }} 孔</span><small>{{ item.source_file }} · PDF 第 {{ item.pdf_page }} 页 / 印刷页 {{ item.printed_page }}</small></div>
+            {% else %}<p class="text-secondary">当前规格需要补充或核对。</p>{% endfor %}
+            {% if question %}<p class="next-question" lang="en">{{ question }}</p>{% endif %}
+          </section>
+          {% endif %}
+        </div>
+      </section>
+      <section class="tab-pane {{ 'active show' if follow_tab else '' }}" id="record-follow" role="tabpanel" aria-labelledby="follow-tab">
+        <div class="detail-body">
+          {% if m.reply_stage %}
+          <div class="reply-history">
+            <strong data-reply-label>{{ reply_stages[m.reply_stage] }}</strong>
+            <p dir="auto" data-reply-body {{ 'hidden' if not m.sent_body else '' }}>{{ m.sent_body or '' }}</p>
+            <small data-reply-id {{ 'hidden' if not m.reply_id else '' }}>{% if m.reply_id %}平台回复 ID {{ m.reply_id }} · {{ display_time(m.reply_updated) }}{% endif %}</small>
+            <p class="text-secondary" data-reply-note {{ 'hidden' if not m.reply_note else '' }}>{{ m.reply_note or '' }}</p>
+            {% if m.source_ref and safe_link(m.source_ref) %}<a class="evidence-link" href="{{ safe_link(m.source_ref) }}" target="_blank" rel="noopener noreferrer">查看 Facebook 原帖</a>{% endif %}
+          </div>
+          {% endif %}
+          <form class="section-actions" method="post" action="{{ url_for('message_action', message_id=m.id, action='reply') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-outline-primary btn-sm" type="submit">{{ '根据留言更新草稿' if m.draft else '生成英文回复' }}</button></form>
+          {{ draft_controls(m, 'message_action', {'message_id': m.id}, '回复草稿', inbox_states, intents, csrf_token(), linked_buyers) }}
+        </div>
+      </section>
+    </div>
+  {% else %}
+    <div class="empty-records empty-details">{{ icon('inbox') }}<h2>询盘详情</h2><p>选择一条评论查看详情。</p></div>
+  {% endif %}
+  </section>
+</div>
+<div class="modal modal-blur fade" id="comment-modal" tabindex="-1" aria-labelledby="comment-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="{{ url_for('add_message') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="modal-header"><h2 class="modal-title" id="comment-title">粘贴评论</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+    <div class="modal-body form-stack">
+      <label>评论原文 <textarea class="form-control" name="body" rows="3" maxlength="12000" required placeholder="粘贴产品帖留言"></textarea></label>
+      <label>数据类型 {{ dataset_select() }}</label>
+      <label>来源链接 <input class="form-control" name="source_ref" type="url" placeholder="https://"></label>
+      <details class="records-disclosure"><summary>补充来源与会话</summary>
+        <div class="field-grid two mt-2">
+          <label>公司（如已知） <input class="form-control" name="company"></label>
+          <label>评论 ID <input class="form-control" name="comment_id"></label>
+          <label>帖子 ID <input class="form-control" name="post_id"></label>
+          <label>会话 ID <input class="form-control" name="thread_id"></label>
+        </div>
+      </details>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" type="submit">保存并分析</button></div>
+  </form></div>
+</div>
+{% endblock %}

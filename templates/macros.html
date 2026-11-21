@@ -1,0 +1,99 @@
+{% macro icon(name) %}
+<span class="app-icon" style="--icon: url('{{ url_for('static', filename='vendor/icons/' + name + '.svg') }}')" aria-hidden="true"></span>
+{% endmacro %}
+{% macro scorecard(score, label, show_evidence=true) %}
+<section class="scorecard" aria-label="{{ label }}">
+  <div class="scorecard-head">
+    <h3>{{ label }}</h3>
+    <span class="score-number {{ score.tier }}">{{ score.total }} <small>/ 100</small></span>
+  </div>
+  {% for item in score.parts %}
+  <div class="score-row">
+    <span class="score-label">{{ item.label }}</span>
+    <progress value="{{ item.points }}" max="{{ item.max }}" aria-label="{{ item.label }} {{ item.points }} 分，共 {{ item.max }} 分"></progress>
+    <span class="score-points">{{ item.points }}/{{ item.max }}</span>
+    {% if show_evidence and item.evidence %}<span class="score-evidence" dir="auto">{{ item.evidence }}</span>{% endif %}
+  </div>
+  {% endfor %}
+  {% if score.note %}<p class="score-note">{{ score.note }}</p>{% endif %}
+</section>
+{% endmacro %}
+{% macro status(label, tone='') %}
+<span class="record-state {{ tone }}"><span class="state-dot" aria-hidden="true"></span>{{ label }}</span>
+{% endmacro %}
+{% macro dataset_select() %}
+<select class="form-select" name="data_kind">
+  <option value="authorized">企业授权或团队自有</option>
+  <option value="synthetic">演示数据</option>
+  <option value="public">公开资料</option>
+</select>
+{% endmacro %}
+{% macro upload(action, formats, template, title, csrf) %}
+<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#upload-modal">{{ icon('upload') }} {{ title }}</button>
+<div class="modal modal-blur fade" id="upload-modal" tabindex="-1" aria-labelledby="upload-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ action }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="modal-header"><h2 class="modal-title" id="upload-title">{{ title }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+      <div class="modal-body form-stack">
+        <label>文件 <input class="form-control" name="file" type="file" accept="{{ formats }}" required></label>
+        <label>默认数据类型 {{ dataset_select() }}</label>
+      </div>
+      <div class="modal-footer justify-content-between"><a class="link-secondary" href="{{ template }}">下载模板</a><button class="btn btn-primary" type="submit">导入记录</button></div>
+    </form>
+  </div>
+</div>
+{% endmacro %}
+{% macro detail_tabs(follow_tab, first_label, follow_label) %}
+<ul class="nav nav-tabs detail-tabs" role="tablist" aria-label="记录详情">
+  <li class="nav-item" role="presentation"><button type="button" class="nav-link {{ '' if follow_tab else 'active' }}"
+    data-bs-toggle="tab" data-bs-target="#record-overview" id="overview-tab" role="tab" aria-controls="record-overview"
+    aria-selected="{{ 'false' if follow_tab else 'true' }}">{{ first_label }}</button></li>
+  <li class="nav-item" role="presentation"><button type="button" class="nav-link {{ 'active' if follow_tab else '' }}"
+    data-bs-toggle="tab" data-bs-target="#record-follow" id="follow-tab" role="tab" aria-controls="record-follow"
+    aria-selected="{{ 'true' if follow_tab else 'false' }}">{{ follow_label }}</button></li>
+</ul>
+{% endmacro %}
+{% macro draft_controls(row, endpoint, endpoint_args, content_label, states, overrides, csrf, linked_buyers=[]) %}
+<form class="form-stack" method="post" action="{{ url_for(endpoint, action='save', **endpoint_args) }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if endpoint == 'buyer_action' %}
+  <div class="field-grid two">
+    <label>联系邮箱 <input class="form-control" type="email" name="contact_email" value="{{ row.contact_email }}" maxlength="254" placeholder="待补"></label>
+    <label>联系人 <input class="form-control" name="contact_name" value="{{ row.contact_name }}" maxlength="120" placeholder="选填"></label>
+  </div>
+  {% endif %}
+  <div class="field-grid">
+    <label>负责人 <input class="form-control" name="owner" value="{{ row.owner }}" maxlength="120" placeholder="待认领"></label>
+    <label>处理状态
+      <select class="form-select" name="status">{% for value, label in states.items() %}<option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    </label>
+    <label>下次跟进 <input class="form-control" type="date" name="follow_up" value="{{ row.follow_up }}"></label>
+  </div>
+  {% if linked_buyers %}
+  <label>关联买家
+    <select class="form-select" name="buyer_id"><option value="">未关联</option>
+      {% for buyer in linked_buyers if (buyer.data_kind == 'synthetic') == (row.data_kind == 'synthetic') %}
+      <option value="{{ buyer.id }}" {% if buyer.id == row.buyer_id %}selected{% endif %}>{{ buyer.company }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <div class="field-grid two">
+    <label>人工改判
+      <select class="form-select" name="override"><option value="">沿用当前判断</option>{% for value, label in overrides.items() %}<option value="{{ value }}" {% if row.override == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    </label>
+    <label>改判原因 <input class="form-control" name="reason" value="{{ row.reason }}" maxlength="1000" placeholder="改判时填写"></label>
+  </div>
+  <label>{{ content_label }} <textarea class="form-control" id="draft" name="draft" rows="6" maxlength="6000" dir="auto" placeholder="生成后可编辑，也可以直接填写。">{{ row.draft }}</textarea></label>
+  <div class="d-flex gap-2 justify-content-end flex-wrap">
+    <button type="button" class="btn" data-copy="#draft">{{ icon('clipboard') }} 复制草稿</button>
+    <button type="submit" class="btn btn-primary">保存跟进</button>
+  </div>
+  <span class="copy-status" role="status"></span>
+</form>
+{% endmacro %}
+{% macro source(ref, safe_link) %}
+  {% if safe_link(ref) %}<a class="evidence-link" href="{{ safe_link(ref) }}" target="_blank" rel="noopener noreferrer">查看来源 {{ icon('external-link') }}</a>
+  {% elif ref %}<span class="text-secondary break">{{ ref }}</span>{% endif %}
+{% endmacro %}

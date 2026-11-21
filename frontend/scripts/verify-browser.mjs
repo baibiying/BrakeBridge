@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict'
+import { mkdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { chromium } from 'playwright'
+
+const baseURL = process.env.BRAKEBRIDGE_TEST_URL || 'http://127.0.0.1:8772'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const context = await browser.newContext({ baseURL, viewport: { width: 1440, height: 1000 }, acceptDownloads: true })
+const page = await context.newPage()
+const taskTitle = '验证展会任务 ' + process.pid
+const errors = []
+page.on('pageerror', error => errors.push(error.message))
+await mkdir('test-results', { recursive: true })
+
+try {
+  await page.goto('/buyers')
+  await page.getByRole('heading', { name: '登录工作台' }).waitFor()
+  await page.getByLabel('密码', { exact: true }).fill('123456')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await page.getByRole('heading', { name: '客户名单', exact: true }).waitFor()
+  await page.getByRole('button', { name: /海湾商用车制动配件.*采购部/ }).click()
+  await page.getByRole('heading', { name: '买家评分' }).waitFor()
+  assert.equal((await page.locator('.score-number').innerText()).trim(), '100 / 100')
+  await page.getByText(/具体地址/).first().waitFor()
+  await page.getByRole('button', { name: '查看邀约' }).click()
+  const draft = page.getByRole('textbox', { name: '英文邀请函' })
+  assert.match(await draft.inputValue(), /What time would suit you/)
+  await page.getByRole('textbox', { name: '负责人' }).fill('联调小组')
+  await page.getByLabel('下次跟进日期').fill('2026-11-29')
+  await page.getByRole('button', { name: '保存跟进' }).click()
+  await page.getByText('跟进已保存', { exact: true }).waitFor()
+  await page.reload()
+  assert.equal(await page.getByRole('textbox', { name: '负责人' }).inputValue(), '联调小组')
+
+  await page.goto('/dashboard')
+  await page.getByRole('img', { name: '展会与客户跟进甘特图' }).locator('canvas').waitFor()
+  await page.screenshot({ path: 'test-results/dashboard.png', fullPage: true })
+  const help = page.getByRole('button', { name: '展会与跟进说明' })
+  await help.focus()
+  await page.getByRole('tooltip').waitFor()
+  await help.press('Escape')
+  await page.getByRole('tooltip').waitFor({ state: 'hidden' })
+  await page.getByRole('button', { name: '新增任务' }).click()
+  await page.getByRole('textbox', { name: '任务名称' }).fill(taskTitle)
+  await page.getByLabel('开始日期').fill('2026-11-28')
+  await page.getByLabel('结束日期').fill('2026-11-30')
+  await page.getByRole('button', { name: '保存任务' }).click()
+  await page.getByText('任务已保存', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '切换任务列表' }).click()
+  await page.getByRole('button', { name: new RegExp(taskTitle) }).waitFor()
+  await page.getByRole('button', { name: /海湾商用车制动配件.*联调小组/ }).waitFor()
+
+  await page.goto('/inbox')
+  await page.waitForURL('**/social?tab=comments&source=history')
+  await page.getByText('Facebook 历史评论', { exact: true }).waitFor()
+  await page.goto('/social?tab=comments')
+  await page.getByRole('button', { name: '全部 30', exact: true }).waitFor()
+  assert.equal(await page.locator('.social-comment').count(), 30)
+  await page.getByRole('button', { name: /^高意向 [1-9]/ }).click()
+  assert.ok(await page.locator('.social-comment').count() < 30)
+  await page.getByText('评分依据', { exact: true }).first().click()
+  await page.getByText('采购行为 30/30', { exact: true }).first().waitFor()
+
+  await page.goto('/buyers')
+  await page.getByRole('button', { name: '导入', exact: true }).click()
+  const importDialog = page.getByRole('dialog')
+  await importDialog.getByLabel('选择文件').setInputFiles(resolve('../data/hqsmartcloud-demo-buyers.csv'))
+  await importDialog.getByRole('button', { name: '导入', exact: true }).click()
+  await page.getByText(/新增 0 条，重复 38 条/).waitFor()
+  await page.getByRole('button', { name: '新增客户' }).click()
+  const newBuyer = page.getByRole('dialog')
+  await newBuyer.getByRole('button', { name: '保存客户' }).click()
+  await newBuyer.getByText('请填写客户名称。').waitFor()
+  const name = '验证客户 ' + process.pid
+  for (const [label, value] of Object.entries({
+    客户名称: name, 联系人: '测试采购部', 国家或地区: '美国', 客户来源: '展会',
+    客户邮箱: 'test@buyer.example', 客户电话: '2025550190', 具体地址: '演示路 18 号',
+  })) await newBuyer.getByRole('textbox', { name: label, exact: true }).fill(value)
+  await newBuyer.getByLabel('重要程度', { exact: true }).click()
+  await page.getByText('4 星', { exact: true }).click()
+  await newBuyer.getByRole('button', { name: '保存客户' }).click()
+  await page.getByRole('heading', { name: '买家评分' }).waitFor()
+  await page.getByText('演示路 18 号', { exact: true }).waitFor()
+
+  await page.goto('/settings')
+  const weight = page.getByRole('slider', { name: '产品匹配' })
+  assert.equal(await weight.inputValue(), '30')
+  await weight.press('ArrowRight')
+  assert.equal(await weight.inputValue(), '31')
+  await page.getByText('100%', { exact: true }).waitFor()
+  await page.getByRole('button', { name: '保存规则' }).click()
+  await page.getByText('规则已更新', { exact: true }).waitFor()
+  await page.reload()
+  assert.equal(await weight.inputValue(), '31')
+  await page.getByRole('button', { name: '恢复默认' }).click()
+  await page.getByRole('button', { name: '保存规则' }).click()
+  await page.getByText('规则已更新', { exact: true }).waitFor()
+
+  await page.goto('/lead-inquiries')
+  await page.getByRole('heading', { name: '询盘转化' }).waitFor()
+  await page.getByRole('button', { name: /海湾商用车制动配件.*12 月展会约见/ }).click()
+  await page.getByText('首次访问', { exact: true }).waitFor()
+  await page.getByText('关注产品', { exact: true }).waitFor()
+  await page.getByRole('tab', { name: '背调与竞品' }).click()
+  await page.getByRole('button', { name: '生成会面准备卡' }).click()
+  await page.getByText('准备卡已生成', { exact: true }).waitFor()
+  await page.getByText('经营品类依据', { exact: true }).first().waitFor()
+  await page.getByRole('heading', { name: '竞品候选' }).waitFor()
+
+  const mobileContext = await browser.newContext({
+    baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    storageState: await context.storageState(),
+  })
+  const mobile = await mobileContext.newPage()
+  mobile.on('pageerror', error => errors.push(error.message))
+  await mobile.goto('/dashboard')
+  await mobile.getByRole('button', { name: '切换甘特图' }).waitFor()
+  assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth) <= 391)
+  const mobileHelp = mobile.getByRole('button', { name: '展会与跟进说明' })
+  await mobileHelp.evaluate(element => element.scrollIntoView({ block: 'center' }))
+  await mobileHelp.tap()
+  await mobile.getByRole('tooltip').waitFor()
+  const mobileLogout = mobile.getByRole('button', { name: '退出登录' })
+  await mobileLogout.evaluate(element => element.scrollIntoView({ block: 'center' }))
+  await mobileLogout.tap()
+  await mobile.getByRole('heading', { name: '登录工作台' }).waitFor()
+  assert.equal(errors.length, 0, errors.join('\n'))
+  console.log('Verified login, buyer scoring, follow-up, chart, task creation, import, comment filters, lead detail, dossier, mobile and logout.')
+} finally {
+  await browser.close()
+}

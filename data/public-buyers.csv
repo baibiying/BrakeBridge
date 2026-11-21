@@ -1,0 +1,9 @@
+record_id,company,country,domain,source_type,source_ref,as_of,source_text,data_kind
+US01,FleetPride,美国,fleetpride.com,website,https://www.fleetpride.com/parts/fleetpride-brake-shoe-kit-k4707qlh20xnh,2026-11-21,Designed for heavy duty applications to enhance braking performance for trucks,public
+US02,Inland Truck Parts & Service,美国,inlandtruck.com,website,https://www.inlandtruck.com/parts-components/brake-wheel-end,2026-11-21,"offer an exchange brake program for medium- to heavy-duty service applications",public
+US03,Michigan Truck Spring,美国,truckspring.com,website,https://www.truckspring.com/hd-truck-trailer-parts.aspx,2026-11-21,"light-, medium-, and heavy-duty truck, trailer, and bus replacement parts",public
+US03B,Michigan Truck Spring,美国,truckspring.com,website,https://www.truckspring.com/hd-truck-trailer-parts.aspx,2026-11-21,"a complete product offering of brake, spring, steering and suspension product lines",public
+US04,Detroit Truck Body Parts,美国,detroittruckbodyparts.com,website,https://detroittruckbodyparts.com/,2026-11-21,"Brake chambers, slack adjusters, rotors, drums, calipers, pads, shoes and ABS sensors.",public
+US04B,Detroit Truck Body Parts,美国,detroittruckbodyparts.com,website,https://detroittruckbodyparts.com/,2026-11-21,Heavy Duty Semi Truck Parts in Michigan,public
+US05,Scientific Brake & Equipment Co,美国,scientificbrake.com,website,https://www.scientificbrake.com/parts/,2026-11-21,Scientific Brake & Equipment is a warehouse distributor for heavy duty truck and trailer parts.,public
+US05B,Scientific Brake & Equipment Co,美国,scientificbrake.com,website,https://www.scientificbrake.com/parts/,2026-11-21,Air Disc Brake Pads and Parts,public
