@@ -56,6 +56,42 @@ class SocialWorkflowTest(unittest.TestCase):
     def draft(self):
         return self.post("/drafts", title="冠英制动件", facebook="欢迎采购商交流。", linkedin="欢迎经销商提供采购需求。")
 
+    def test_company_seed_loads_deployable_data_and_preserves_changes(self):
+        runner = self.app.test_cli_runner()
+        initial = runner.invoke(args=["seed", "demo"])
+        self.assertEqual(initial.exit_code, 0, initial.output)
+        root = "/api/lead-inquiries"
+        rows = self.client.get(root + "?kind=authorized").json["items"]
+        self.assertEqual(len(rows), 61)
+        self.assertTrue(all(row["ai_scored"] for row in rows))
+        assets = self.client.get("/api/social").json["assets"]
+        self.assertEqual(len(assets), 40)
+        photo = assets[0]["id"]
+        image = self.client.get(f"/api/social/assets/{photo}/image").data
+        self.assertTrue(image.startswith(bytes.fromhex("ffd8ff")))
+        self.assertEqual(self.app.test_client().get(f"/api/social/assets/{photo}/image").status_code, 401)
+        self.assertFalse(self.client.get("/api/social/figeon").json["connected"])
+        self.assertFalse(self.client.get("/api/settings/competitor-agent").json["editable_key"])
+
+        headers = {"X-CSRFToken": self.csrf}
+        edited, removed = (row["id"] for row in rows[:2])
+        self.assertEqual(self.client.post(f"{root}/{edited}/edit", headers=headers, data={"title": "更新后标题"}).status_code, 200)
+        self.assertEqual(self.client.post(f"{root}/{removed}/delete", headers=headers).status_code, 200)
+        repeat = runner.invoke(args=["seed", "company"])
+        self.assertEqual(repeat.exit_code, 0, repeat.output)
+        self.assertIn("0 inquiries, 0 product images", repeat.output)
+        self.assertEqual(self.client.get(f"{root}/{edited}").json["inquiry"]["fields"]["title"], "更新后标题")
+        self.assertEqual([row["id"] for row in self.client.get(root + "?deleted=1").json["items"]], [removed])
+
+        with patch("figeon.call", return_value={"data": [{"platform": "facebook", "name": "Test", "status": "link"}]}):
+            self.post("/figeon/connect", token="fixture-explicit-auth-token")
+            future = datetime.now(timezone.utc) + timedelta(hours=1)
+            self.post("/figeon/release", request_key=str(uuid4()), title="产品图文测试", body="图文预览",
+                      asset_id=photo, platforms=["facebook"], run_at=future.isoformat())
+        tasks = self.client.get("/api/social/figeon/scheduled").json["items"]
+        self.assertTrue(tasks[0]["has_image"])
+        self.assertEqual(self.client.get(f"/api/social/versions/{tasks[0]['version_id']}/image").data, image)
+
     def test_demo_comments_are_separate_ranked_and_promote_once(self):
         endpoint = "/comments/demo"
         items = self.post(endpoint)["items"]

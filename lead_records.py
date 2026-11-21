@@ -3,7 +3,7 @@ import json
 from uuid import uuid4
 
 import lead_inquiries as leads
-from storage import get_db
+from storage import get_db, write_transaction
 
 EXPORT_FIELDS = {
     "name": "姓名", "content": "内容", "phone": "手机", "mail": "邮箱", "title": "标题",
@@ -48,11 +48,10 @@ def store_fields(row, fields, event_date):
                                   next_action, fields["content"], row["id"]))
 
 
-def import_export(indexed_rows, kind, event_date):
+def import_export(indexed_rows, kind, event_date, *, identities=None):
     db = get_db()
     counts = {"total": len(indexed_rows), "inserted": 0, "updated": 0, "duplicate": 0, "deleted": 0, "errors": []}
-    with db:
-        db.execute("BEGIN IMMEDIATE")
+    with write_transaction(db):
         known = {}
         ambiguous = set()
         for row in db.execute("SELECT * FROM lead_inquiries WHERE source='hqsmartcloud' AND data_kind=?", (kind,)):
@@ -89,11 +88,12 @@ def import_export(indexed_rows, kind, event_date):
             buyer_id = leads.buyer_match(sender, kind)
             analysis = leads.intent(leads.current_reply(fields["content"]), event_date=event_date, known_product=leads.buyer_product(buyer_id))
             inserted = db.execute("""INSERT INTO lead_inquiries(source,external_id,data_kind,fields,sender,buyer_id,
-                                      received_at,analysis,meeting_at,next_action,vendor_key)
-                                      VALUES ('hqsmartcloud',?,?,?,?,?,?,?,?,?,?)""",
+                                      received_at,analysis,meeting_at,next_action,vendor_key,identity)
+                                      VALUES ('hqsmartcloud',?,?,?,?,?,?,?,?,?,?,?)""",
                                   (fields["number"], kind, json.dumps(fields, ensure_ascii=False), sender, buyer_id,
                                    leads.date_value(fields["added_at"]), json.dumps(analysis, ensure_ascii=False),
-                                   analysis["meeting_at"], analysis["next_action"], key))
+                                   analysis["meeting_at"], analysis["next_action"], key,
+                                   identities.get(key, "") if identities else ""))
             known[key] = db.execute("SELECT * FROM lead_inquiries WHERE id=?", (inserted.lastrowid,)).fetchone()
             counts["inserted"] += 1
     return counts

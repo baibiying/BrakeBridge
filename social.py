@@ -3,7 +3,6 @@ import hashlib
 import json
 import os
 import tempfile
-from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -19,7 +18,7 @@ import research_agent
 import social_assets
 from model_client import ModelUnavailable, ask_json, available
 import social_providers as providers
-from storage import get_db
+from storage import get_db, write_transaction
 
 COMPANY_SOURCE = {"title": "冠英官方产品目录", "url": "https://www.kooying.com/product/",
                   "summary": "冠英提供商用车制动衬片、盘式刹车片和制动蹄等产品。展会和技术信息以已核资料为准。"}
@@ -49,16 +48,6 @@ TOPICS = {
 
 def utc_stamp(value=None):
     return (value or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="seconds")
-
-
-@contextmanager
-def write_transaction(db):
-    if db.in_transaction:
-        yield
-    else:
-        with db:
-            db.execute("BEGIN IMMEDIATE")
-            yield
 
 
 def text(value, limit, label):

@@ -17,6 +17,7 @@ from werkzeug.exceptions import HTTPException
 import agent_scoring
 import buyers
 import buyer_settings
+import company_seed
 import facebook
 import facebook_replies
 import inquiries
@@ -529,8 +530,11 @@ def register_routes(app):
         abort(404)
 
     @app.cli.command("seed")
-    @click.argument("dataset", type=click.Choice(["demo", "public"]))
+    @click.argument("dataset", type=click.Choice(["demo", "public", "company"]))
     def seed(dataset):
+        if dataset == "company":
+            seed_company()
+            return
         filename = "hqsmartcloud-demo-buyers.csv" if dataset == "demo" else "public-buyers.csv"
         with (DATA / filename).open(encoding="utf-8-sig", newline="") as source:
             counts = buyers.import_rows(list(enumerate(csv.DictReader(source), 2)),
@@ -554,6 +558,16 @@ def register_routes(app):
                     counts = lead_inquiries.import_vendor(json.load(source), "synthetic",
                                                          event_details(app)["date"] or workspace.DEMO_FALLBACK)
                 click.echo(f"Inquiries: {counts['inserted']}. Duplicates: {counts['duplicate']}.")
+            if company_seed.BUNDLE.is_file():
+                seed_company()
+
+    def seed_company():
+        try:
+            result = company_seed.install(company_seed.BUNDLE, event_details(app)["date"] or workspace.DEMO_FALLBACK)
+        except (OSError, sqlite3.Error, ValueError) as error:
+            raise click.ClickException(str(error)) from error
+        click.echo(f"Company seed: {result['inquiries']} inquiries, {result['photos']} product images, "
+                   f"{result['scores']} restored AI scores. Retained inquiries: {result['retained']}.")
 
 
 def safe_link(value):

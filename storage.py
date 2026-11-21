@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 from flask import current_app, g
@@ -189,6 +190,16 @@ def get_db():
         connection.execute("PRAGMA foreign_keys = ON")
         g.db = connection
     return g.db
+
+
+@contextmanager
+def write_transaction(db):
+    if db.in_transaction:
+        yield
+    else:
+        with db:
+            db.execute("BEGIN IMMEDIATE")
+            yield
 
 
 def close_db(_error):

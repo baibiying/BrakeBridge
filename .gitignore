@@ -21,6 +21,7 @@ poster_src/
 !.env.example
 *.py[cod]
 *.sqlite*
+!data/company-seed.sqlite3
 *.db
 *.log
 social-token.key
