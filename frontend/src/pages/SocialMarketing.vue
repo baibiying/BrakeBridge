@@ -15,9 +15,11 @@ type Asset = { id: number; title: string; category: string; model: string }
 type Overview = { drafts: Draft[]; news: Source[]; model_ready: boolean; agent_ready: boolean; web_ready: boolean; news_feeds: boolean; assets: Asset[] }
 type FigeonTarget = { platform: string; name: string; state: string; url: string; comments: boolean }
 type FigeonPost = { remote_id: number; title: string; content: string; created_at: string; status: number; targets: FigeonTarget[] }
-type FigeonBatch = { id: number; title: string; platforms: string[]; state: string; run_at: string; remote_id?: number; note: string; has_image: boolean }
+type Publication = { key: string; batch_id: number | null; remote_id: number | null; title: string; content: string;
+  platforms: string[]; state: string; at: string; note: string; has_image: boolean; targets: FigeonTarget[] }
 type KeepAlive = { enabled: boolean; state: 'off' | 'waiting' | 'active' | 'expired' | 'unavailable'; checked_at: string }
-type Figeon = { connected: boolean; keep_alive?: KeepAlive; platforms: { key: string; label: string; media: string }[]; accounts: { platform: string; name: string; supported: boolean }[]; posts: FigeonPost[]; batches: FigeonBatch[] }
+type Figeon = { connected: boolean; keep_alive?: KeepAlive; platforms: { key: string; label: string; media: string }[];
+  accounts: { platform: string; name: string; supported: boolean }[]; posts: FigeonPost[]; records: Publication[] }
 
 const router = useRouter()
 const route = useRoute()
@@ -369,8 +371,8 @@ async function loadComments() {
   }
 }
 
-function showFigeonComments(post: FigeonPost, target: FigeonTarget) {
-  feed.value = `posts/${post.remote_id}/${target.platform}`
+function showFigeonComments(remote: number, target: FigeonTarget) {
+  feed.value = `posts/${remote}/${target.platform}`
   tab.value = 'comments'
 }
 
@@ -431,8 +433,8 @@ watch(bindingOpen, open => { if (!open) bindingLink.value = '' })
 onMounted(async () => {
   await run('refresh', refresh)
   receiptTimer = setInterval(() => {
-    const pending = tab.value === 'figeon' && figeonData.value?.batches.some(batch =>
-      ['scheduled', 'sending', 'submitted'].includes(batch.state))
+    const pending = tab.value === 'figeon' && figeonData.value?.connected &&
+      figeonData.value.records.some(record => ['scheduled', 'sending', 'submitted'].includes(record.state))
     if ((pending || connectionOpen.value) && !work.value && !connectionWork.value) void refreshVendor().catch(() => {})
     if (connectionOpen.value && verification.value?.image_ready && !connectionWork.value)
       void refreshVerification().catch(() => {})
@@ -548,27 +550,29 @@ onUnmounted(() => clearInterval(receiptTimer))
       <NTabPane name="figeon" tab="发布记录">
         <div class="social-grid vendor-grid">
           <section class="glass social-card">
-            <div class="social-heading"><h2>发布记录</h2><NButton v-if="figeonData?.connected" size="small" :disabled="!!work" :loading="work === 'figeon-sync'" @click="syncFigeon">同步飞鸽记录</NButton></div>
-            <div v-if="figeonData?.batches.length" class="social-list">
-              <article v-for="batch in figeonData.batches" :key="batch.id" class="social-row">
-                <div class="social-row-main"><strong>{{ batch.title }}</strong><span>{{ figeonNames(batch.platforms) }} · {{ dateTime(batch.run_at) }}{{ batch.has_image ? ' · 图文' : '' }}{{ batch.remote_id ? ' · 飞鸽 #' + batch.remote_id : '' }}</span>
-                  <span v-if="batch.note">{{ batch.note }}</span></div>
-                <NTag size="small" :type="jobTone(batch.state)" :bordered="false">{{ figeonState(batch.state) }}</NTag>
-                <NButton v-if="batch.state === 'scheduled'" size="small" :disabled="!!work" @click="cancelFigeon(batch.id)">取消任务</NButton>
-              </article>
+            <div class="social-heading"><h2>发布记录</h2>
+              <NButton v-if="figeonData?.connected" size="small" :disabled="!!work" :loading="work === 'figeon-sync'" @click="syncFigeon">同步飞鸽记录</NButton>
+              <span v-else-if="figeonData" class="social-muted">本机已保存</span>
             </div>
-            <NEmpty v-else size="small" description="暂无立即或定时任务" />
-            <div class="social-heading receipts-title"><h2>飞鸽发文回执</h2></div>
-            <NEmpty v-if="!figeonData?.posts.length" description="连接后可同步飞鸽文章和平台回执" />
-            <article v-for="post in figeonData?.posts" :key="post.remote_id" class="figeon-post">
-              <strong>{{ post.title || '飞鸽文章' }}</strong>
-              <p>{{ post.content }}</p>
-              <div class="social-muted">{{ dateTime(post.created_at) }} · 飞鸽 #{{ post.remote_id }}</div>
-              <div v-for="target in post.targets" :key="target.platform" class="social-actions figeon-target">
-                <span>{{ figeonName(target.platform) }} · {{ target.name }}</span>
+            <NEmpty v-if="figeonData && !figeonData.records.length" size="small" description="暂无发布记录" />
+            <article v-for="record in figeonData?.records" :key="record.key" class="figeon-post">
+              <div class="publication-heading">
+                <div><strong>{{ record.title || '飞鸽文章' }}</strong>
+                  <div class="social-muted">{{ dateTime(record.at) }}{{ record.remote_id ? ' · 飞鸽 #' + record.remote_id : '' }}{{ record.has_image ? ' · 图文' : '' }}</div>
+                </div>
+                <NTag v-if="record.targets.length !== 1" size="small" :type="jobTone(record.state)" :bordered="false">{{ figeonState(record.state) }}</NTag>
+              </div>
+              <p v-if="record.content">{{ record.content }}</p>
+              <p v-if="record.note" class="social-muted">{{ record.note }}</p>
+              <div v-if="!record.targets.length" class="social-actions figeon-target">
+                <span>{{ figeonNames(record.platforms) }}</span>
+                <NButton v-if="record.state === 'scheduled' && record.batch_id" size="small" :disabled="!!work" @click="cancelFigeon(record.batch_id)">取消任务</NButton>
+              </div>
+              <div v-for="target in record.targets" :key="target.platform" class="social-actions figeon-target">
+                <span>{{ figeonName(target.platform) }}<template v-if="target.name"> · {{ target.name }}</template></span>
                 <NTag :type="jobTone(target.state)" size="small" :bordered="false">{{ figeonState(target.state) }}</NTag>
                 <a v-if="safeUrl(target.url)" class="social-link" :href="safeUrl(target.url)" target="_blank" rel="noreferrer">原帖 <IconExternalLink :size="14" /></a>
-                <NButton v-if="target.comments" size="tiny" :disabled="!!work" @click="showFigeonComments(post, target)">查看评论</NButton>
+                <NButton v-if="target.comments && record.remote_id" size="small" :disabled="!!work" @click="showFigeonComments(record.remote_id, target)">查看评论</NButton>
               </div>
             </article>
           </section>
@@ -781,7 +785,8 @@ onUnmounted(() => clearInterval(receiptTimer))
 .destination-status { white-space: nowrap; color: #52657e; font-size: 10px; font-weight: 500; }
 .destination-status.is-bound { color: #176447; }
 .priority-filters, .comment-demo-notice { margin-bottom: 12px; }
-.receipts-title { margin: 18px 0 4px; }
+.publication-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.publication-heading .social-muted { margin-top: 3px; }
 .connection-status { margin-bottom: 14px; }
 .keepalive-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
   margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2eaf4; }

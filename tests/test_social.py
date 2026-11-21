@@ -167,9 +167,21 @@ class SocialWorkflowTest(unittest.TestCase):
             data = self.client.get("/api/social/figeon").json
             self.assertEqual(data["batches"][0]["state"], "partial")
             self.assertEqual(data["posts"][0]["targets"][1]["url"], "https://x.com/page/status/123")
+            self.assertEqual([record["key"] for record in data["records"]], ["receipt-123"])
+            self.assertEqual(data["records"][0]["state"], "partial")
             self.post("/figeon/posts/123/twitter/sync", status=400)
             self.assertEqual(self.post("/figeon/posts/123/facebook/sync")["new"], 1)
             self.assertEqual(self.post("/figeon/posts/123/facebook/sync")["new"], 0)
+            with self.app.app_context(), get_db():
+                get_db().execute("""INSERT INTO figeon_posts
+                    SELECT connection_revision+1,remote_id,title,content,created_at,status,targets
+                    FROM figeon_posts WHERE remote_id=123""")
+                get_db().execute("DELETE FROM figeon_connection")
+        offline = self.client.get("/api/social/figeon").json
+        self.assertFalse(offline["connected"])
+        self.assertEqual([record["key"] for record in offline["records"]], ["receipt-123"])
+        self.assertEqual(offline["records"][0]["targets"][1]["url"], "https://x.com/page/status/123")
+        self.assertFalse(any(target["comments"] for target in offline["records"][0]["targets"]))
 
     def test_figeon_uncertain_result_is_never_resent(self):
         with patch("figeon.call", side_effect=self.vendor("uncertain")) as service:
@@ -311,7 +323,7 @@ class SocialWorkflowTest(unittest.TestCase):
             social_assets.store("29125 · 盘式刹车片", "盘式刹车片", "29125", image)
             asset_id = social_assets.catalog()[0]["id"]
         url = "https://www.example.org/news/event"
-        response = {"title": "展前采购", "body": "带上零件号来交流。", "asset_id": asset_id}
+        response = {"title": "展前采购", "body": "欢迎发送零件号以便核对目录（来源：主办方新闻稿）。\n资料来源：展会公告", "asset_id": asset_id}
         response["news"] = [{"title": "展会动态", "url": url, "summary": "主办方公布议程",
                              "published_on": datetime.now(social.leads.ZONE).date().isoformat()}]
         cited = {research_agent.source_key(url): (url, "主办方公布议程")}
@@ -320,6 +332,8 @@ class SocialWorkflowTest(unittest.TestCase):
             generated = self.post("/generate-article", live_news="1", use_images="1", platforms=["twitter"], language="zh")
             self.assertTrue(ask.call_args.kwargs["web"])
             self.assertIn("正文最多 110 个字符", ask.call_args.args[0])
+            self.assertIn("正式、克制的商务语气", ask.call_args.args[0])
+            self.assertEqual(generated["body"], "欢迎发送零件号以便核对目录。")
             self.assertIn("2026 年浙江冠英企业介绍", [item["title"] for item in ask.call_args.args[1]["sources"]])
             self.assertEqual(generated["asset_id"], asset_id)
             self.assertIn(url, [item["url"] for item in generated["refs"]])

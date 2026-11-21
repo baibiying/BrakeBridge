@@ -1,12 +1,14 @@
 import re
 from datetime import date, datetime, timedelta, timezone
+from collections import Counter
 from pathlib import Path
 
-from flask import abort, g, jsonify, redirect, request, send_from_directory, session, url_for
+from flask import abort, current_app, g, jsonify, redirect, request, send_from_directory, session, url_for
 from flask_wtf.csrf import generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import buyers
+import lead_inquiries as leads
 from storage import get_db
 
 DEMO_FALLBACK = "2026-12-02"
@@ -165,6 +167,17 @@ def task_window(args):
     return today.isoformat(), start.isoformat(), end.isoformat()
 
 
+def inquiry_overview(rows, today):
+    by_date = Counter(leads.intake_day(row) for row in rows)
+    by_source = Counter(row["source"] for row in rows)
+    by_status = Counter(row["status"] for row in rows)
+    calendar = date.fromisoformat(today)
+    recent = [(calendar - timedelta(days=offset)).isoformat() for offset in range(59, -1, -1)]
+    return {"inquiries_count": len(rows), "inquiry_sources": dict(by_source),
+            "inquiry_states": {key: {"label": label, "count": by_status[key]} for key, label in leads.LEAD_STATES.items()},
+            "inquiry_daily": [{"day": day, "count": by_date[day]} for day in recent]}
+
+
 def dashboard(entries, messages, args):
     today, start, end = task_window(args)
     scope = args.get("kind")
@@ -172,6 +185,9 @@ def dashboard(entries, messages, args):
     messages = [row for row in messages if not scope or row["data_kind"] == scope]
     tiers = {key: sum(item["tier"] == key for item in entries) for key in buyers.TIER_LABELS}
     inbox = {key: sum(row["status"] == key for row in messages) for key in ("new", "review", "done", "archive")}
+    inquiries = get_db().execute("""SELECT id,fields,source,received_at,meeting_at,identity,status,owner,data_kind
+        FROM lead_inquiries WHERE deleted_at='' AND (data_kind='authorized' OR ?) AND (? IS NULL OR data_kind=?)""",
+        (current_app.config["LEADS_ALLOW_SYNTHETIC"], scope or None, scope)).fetchall()
     events = [dict(row) for row in get_db().execute("SELECT * FROM event_tasks ORDER BY start_on, id")
               if not scope or row["data_kind"] == scope]
     for event in events:
@@ -186,6 +202,16 @@ def dashboard(entries, messages, args):
                           "owner": row["owner"], "status": {"done": "done", "contacted": "doing", "waiting": "doing"}.get(row["status"], "open"),
                           "kind": label, "start_on": row["follow_up"], "end_on": row["follow_up"],
                           "data_kind": row["data_kind"]})
+    for row in inquiries:
+        meeting = leads.date_value(row["meeting_at"])
+        if meeting and row["status"] != "archived":
+            day = datetime.fromisoformat(meeting).astimezone(leads.ZONE).date().isoformat()
+            fields = leads.payload(row["fields"], {})
+            title = leads.payload(row["identity"], {}).get("company") or fields.get("company") or f"询盘会面 #{row['id']}"
+            status = {"working": "doing", "done": "done", "declined": "done"}.get(row["status"], "open")
+            tasks.append({"id": row["id"], "resource": "lead", "title": title, "owner": row["owner"],
+                          "status": status, "kind": "询盘会面", "start_on": day, "end_on": day,
+                          "data_kind": row["data_kind"]})
     for task in tasks:
         task["overdue"] = task["status"] != "done" and task["end_on"] < today
     due = [task for task in tasks if task["status"] != "done" and task["end_on"] <= today]
@@ -196,7 +222,7 @@ def dashboard(entries, messages, args):
     window.sort(key=lambda task: (task["resource"] != "event", task["start_on"], task["title"]))
     return {"today": today, "start": start, "end": end, "tasks": window, "due": due,
             "tiers": tiers, "inbox": inbox, "owners": sorted({task["owner"] for task in tasks if task["owner"]}),
-            "buyers_count": len(entries)}
+            "buyers_count": len(entries), **inquiry_overview(inquiries, today)}
 
 
 def persist_event(values, task_id=None):

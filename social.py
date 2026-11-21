@@ -2,6 +2,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -230,6 +231,23 @@ def sources(selected, saved=()):
     return [COMPANY_SOURCE, COMPANY_PROFILE, *snapshots.values()]
 
 
+ARTICLE_STYLE = (
+    "采用正式、克制的商务语气，避免口号、表情和过度热情的称呼。"
+    "把经过核实的动态自然写入正文，直接说明对采购方有用的事实和下一步操作。"
+    "不得在成稿中写“来源：”“出处：”“据某某新闻稿”等来源说明或插入链接。信源由工作台随草稿保存。"
+)
+
+
+def article_body(value):
+    if not isinstance(value, str):
+        return ""
+    caption = r"(?:(?:资料|消息|信息|新闻|数据)?来源|出处|Sources?|References?)"
+    value = re.sub(rf"[（(]\s*{caption}\s*[:：][^\n）)]*[）)]", "", value, flags=re.I)
+    value = re.sub(rf"(?im)^\s*{caption}\s*[:：][^\r\n]*", "", value)
+    value = re.sub(rf"(?i)(?<=[。！？.!?])\s*{caption}\s*[:：][^\r\n]*$", "", value)
+    return value.strip()
+
+
 def polish(title, body, selected, event):
     title = text(title, 160, "标题")
     body = text(body, 2800, "企业原稿")
@@ -241,12 +259,12 @@ def polish(title, body, selected, event):
             output = ask_json(
                 "为冠英生成 Facebook Page 和 LinkedIn 企业帖草稿。返回 facebook 和 linkedin 两个字符串，每个最多2800字。"
                 "沿用企业原稿语言，Facebook简洁、LinkedIn偏采购和行业语境。仅使用原稿和提供的证据。"
-                "新闻内容仅摘要并注明出处，不复制全文，不新增价格、认证、性能、交期、规格、展位或参展承诺。"
-                "不输出额外链接；用新闻来源名称注明出处，来源链接会保存在稿件里供审核。",
+                "只提炼新闻要点，不新增价格、认证、性能、交期、规格、展位或参展承诺。" + ARTICLE_STYLE,
                 {"title": title, "body": body, "sources": refs, "verified_event": event},
             )
-            if all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= 2800 for key in PLATFORMS):
-                return {**{key: output[key].strip() for key in PLATFORMS}, "refs": refs, "engine": "ai"}
+            articles = {key: article_body(output.get(key)) for key in PLATFORMS}
+            if all(0 < len(value) <= 2800 for value in articles.values()):
+                return {**articles, "refs": refs, "engine": "ai"}
         except ModelUnavailable:
             pass
     return {"facebook": body, "linkedin": body, "refs": refs, "engine": "manual"}
@@ -288,8 +306,9 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
         prompt = (
             "为浙江冠英写一条国际商用车制动件社媒推广草稿。按语言输出 title 和 body 两个字符串，正文最多 2800 字。"
             "企业事实应来自资料；正文要让商用车制动件进口商或分销商知道下一步可提供哪些信息。"
-            "结合真正相关的行业热点并标明来源名称，无法核实就省略。严禁承诺未经核实的展位、参展、认证、适配、价格、交期。"
+            "结合真正相关的行业热点，无法核实就省略。严禁承诺未经核实的展位、参展、认证、适配、价格、交期。"
             "配图仅从素材中选一张与正文直接匹配的产品图，返回整数 asset_id；没有合适的图就返回 null。"
+            + ARTICLE_STYLE
         )
         if short_x:
             limit = 110 if language == "zh" else 235
@@ -312,6 +331,7 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
             }, web=search)
         except research_agent.ResearchUnavailable as error:
             raise ValueError(str(error)) from error
+        output["body"] = article_body(output.get("body"))
         if not all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= limit
                    for key, limit in (("title", 160), ("body", 2800))):
             raise ValueError("销售 Agent 未返回有效的文章草稿，请重试。")
@@ -327,9 +347,10 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
             output = ask_json(
                 "为冠英写一条可跨平台发布的商用车制动件推广短文。只返回 title 和 body 两个字符串。"
                 "按指定语言输出。保留产品事实和已核实的时间地点，用易懂的采购术语。正文尽量不超过 240 字符。"
-                "新闻只摘要且注明出处。不要增加未核实的认证、价格、型号、交期或展会承诺。",
+                "只提炼新闻要点。不要增加未核实的认证、价格、型号、交期或展会承诺。" + ARTICLE_STYLE,
                 {"title": title, "original": body, "language": language, "sources": refs, "verified_event": event},
             )
+            output["body"] = article_body(output.get("body"))
             if all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= limit
                    for key, limit in (("title", 160), ("body", 2800))):
                 return {"title": output["title"].strip(), "body": output["body"].strip(), "refs": refs, "engine": "ai"}

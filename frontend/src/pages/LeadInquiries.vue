@@ -18,6 +18,9 @@ const toast = useMessage()
 const root = '/lead-inquiries'
 const selected = computed(() => Number(route.query.id) || null)
 const filter = reactive({ q: '', tier: '', source: '', sort: 'priority', deleted: false })
+const routeFilter = computed(() => Object.fromEntries(['kind', 'state', 'day'].map(key =>
+  [key, typeof route.query[key] === 'string' ? route.query[key] : undefined])) as Record<string, string | undefined>)
+const routeFilterActive = computed(() => Object.values(routeFilter.value).some(Boolean))
 const pagination = reactive({ page: 1, pageSize: 12 })
 const results = ref<LeadList>()
 const detail = ref<LeadDetail>()
@@ -58,7 +61,7 @@ async function load() {
   listError.value = ''
   try {
     const data = await api<LeadList>(root + query({
-      q: filter.q.trim(), deleted: filter.deleted ? '1' : '', tier: filter.tier, sort: filter.sort,
+      ...routeFilter.value, q: filter.q.trim(), deleted: filter.deleted ? '1' : '', tier: filter.tier, sort: filter.sort,
     }))
     if (version === listVersion) results.value = data
   } catch (error) { if (version === listVersion) listError.value = errorText(error) }
@@ -94,12 +97,24 @@ async function loadDetail(id: number | null, resetForm = false) {
     }
   } catch (error) { if (version === detailVersion) detailError.value = errorText(error) }
 }
-watch(() => [filter.tier, filter.deleted, filter.sort], search, { immediate: true })
+watch(() => [filter.tier, filter.deleted, filter.sort, routeFilter.value.kind, routeFilter.value.state, routeFilter.value.day],
+  search, { immediate: true })
+watch(() => route.query.source, value => { filter.source = typeof value === 'string' ? value : '' }, { immediate: true })
 watch(() => filter.source, () => { pagination.page = 1 })
-watch(selected, id => { tab.value = route.query.tab === 'research' ? 'research' : 'fields'; void loadDetail(id, true) }, { immediate: true })
+watch(selected, id => { tab.value = route.query.tab === 'research' || route.query.tab === 'follow' ? route.query.tab : 'fields'; void loadDetail(id, true) }, { immediate: true })
 void loadStatus()
 
-function open(id?: number) { return router.replace({ path: root, query: id ? { id } : {} }) }
+function open(id?: number) {
+  return router.replace({ path: root, query: { ...route.query, id, tab: undefined } })
+}
+
+function setSource(value: string | null) {
+  return router.replace({ path: root, query: { ...route.query, source: value || undefined } })
+}
+
+function clearRouteFilter() {
+  return router.replace({ path: root, query: { ...route.query, kind: undefined, day: undefined, state: undefined } })
+}
 function popupOpen(name: string) { popup.value = name; popupError.value = ''; result.value = undefined }
 function importOpen() { upload.value = undefined; popupOpen('import') }
 function editorOpen(editing = false) {
@@ -275,6 +290,12 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
   </header>
   <section class="glass list-panel">
     <div class="panel-title"><h2>{{ filter.deleted ? '回收站' : '询盘列表' }}</h2><HelpTip label="询盘列表">跟进优先按优先级排序。「有戏」档先展示已查到竞品或渠道的询盘，同组再按分数排序。可切换为仅按评分排序。</HelpTip></div>
+    <div v-if="routeFilterActive" class="drilldown-filters inline-actions" aria-label="来自总览的筛选">
+      <span v-if="routeFilter.kind" class="pill neutral">{{ dataScopes[routeFilter.kind as keyof typeof dataScopes] || '公开资料' }}</span>
+      <span v-if="routeFilter.state" class="pill neutral">{{ results?.states[routeFilter.state] || '指定跟进状态' }}</span>
+      <span v-if="routeFilter.day" class="pill neutral">提交日 {{ routeFilter.day }}</span>
+      <NButton size="small" quaternary @click="clearRouteFilter">清除筛选</NButton>
+    </div>
     <div class="list-filters">
       <form class="search" @submit.prevent="search">
         <NInput v-model:value="filter.q" clearable placeholder="搜索标题、企业、地区或邮箱"
@@ -284,7 +305,7 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
       <NSelect class="filter-select tier-select" :value="filter.tier || null" placeholder="全部优先级"
         :options="options(results?.priorities || {})" clearable @update:value="filter.tier = $event ?? ''" />
       <NSelect class="filter-select" :value="filter.source || null" placeholder="全部来源"
-        :options="options(sourceLabel)" clearable @update:value="filter.source = $event ?? ''" />
+        :options="options(sourceLabel)" clearable @update:value="setSource" />
       <NSelect v-model:value="filter.sort" class="filter-select lead-sort" :options="sortOptions" aria-label="排序方式" />
     </div>
     <p v-if="listError" class="notice error" role="alert">{{ listError }} <button class="text-button" @click="load">重试</button></p>

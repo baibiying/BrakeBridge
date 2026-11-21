@@ -63,6 +63,12 @@ def stamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+def intake_day(row):
+    fields = payload(row["fields"], {})
+    value = date_value(fields.get("added_at") or fields.get("addtime")) or date_value(row["received_at"])
+    return datetime.fromisoformat(value).astimezone(ZONE).date().isoformat() if value else ""
+
+
 def date_value(value):
     if not value:
         return ""

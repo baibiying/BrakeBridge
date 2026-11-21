@@ -92,7 +92,7 @@ export interface InboxDetail {
 }
 export interface Task {
   id: number
-  resource: 'event' | 'buyer' | 'inbox'
+  resource: 'event' | 'buyer' | 'inbox' | 'lead'
   title: string
   owner: string
   kind: string
@@ -106,6 +106,9 @@ export interface DashboardData {
   today: string; start: string; end: string
   tasks: Task[]; due: Task[]; owners: string[]
   tiers: Record<string, number>; inbox: Record<string, number>; buyers_count: number
+  inquiries_count: number; inquiry_sources: Record<string, number>
+  inquiry_states: Record<string, { label: string; count: number }>
+  inquiry_daily: { day: string; count: number }[]
 }
 export interface Counts {
   buyers?: number; new: number; duplicate: number; invites?: number; errors: string[]

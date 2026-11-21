@@ -225,7 +225,12 @@ def connect(token):
     with db:
         db.execute("BEGIN IMMEDIATE")
         previous = connection()
-        revision = (previous["revision"] + 1) if previous else 1
+        latest = db.execute("""SELECT MAX(revision) FROM (
+            SELECT connection_revision AS revision FROM figeon_posts
+            UNION ALL SELECT connection_revision FROM figeon_batches
+            UNION ALL SELECT revision FROM figeon_connection
+        )""").fetchone()[0]
+        revision = (latest or 0) + 1
         if previous:
             try:
                 if access(previous) == token:
@@ -354,14 +359,47 @@ def receipt_state(receipts, status):
     return "failed" if status == 2 or states == {"failed"} else "submitted"
 
 
+def publication_records(revision):
+    db = get_db()
+    received = db.execute("""SELECT p.*,b.id AS batch_id,COALESCE(NULLIF(p.created_at,''),b.run_at,'') AS published_at,
+                 EXISTS(SELECT 1 FROM social_versions v WHERE v.id=b.version_id AND v.image IS NOT NULL) AS has_image
+        FROM figeon_posts p
+        LEFT JOIN figeon_batches b ON b.id=(SELECT MAX(id) FROM figeon_batches WHERE remote_id=p.remote_id)
+        WHERE NOT EXISTS(SELECT 1 FROM figeon_posts newer WHERE newer.remote_id=p.remote_id
+                         AND newer.connection_revision>p.connection_revision)
+        ORDER BY published_at DESC,p.remote_id DESC LIMIT 100""")
+    records = []
+    for post in received:
+        targets = json.loads(post["targets"])
+        for target in targets:
+            target["comments"] = target["comments"] and post["connection_revision"] == revision
+        records.append({"key": f"receipt-{post['remote_id']}", "remote_id": post["remote_id"], "batch_id": post["batch_id"],
+                        "title": post["title"], "content": post["content"], "at": post["published_at"],
+                        "state": receipt_state(targets, post["status"]), "targets": targets,
+                        "platforms": [target["platform"] for target in targets], "has_image": bool(post["has_image"]),
+                        "note": ""})
+    pending = db.execute("""SELECT b.id,b.remote_id,b.content,b.platforms,b.run_at,b.state,b.note,v.title,
+                                        v.image IS NOT NULL AS has_image
+        FROM figeon_batches b JOIN social_versions v ON v.id=b.version_id
+        WHERE NOT EXISTS(SELECT 1 FROM figeon_posts p WHERE p.remote_id=b.remote_id)
+        ORDER BY b.run_at DESC,b.id DESC LIMIT 100""")
+    for batch in pending:
+        records.append({"key": f"batch-{batch['id']}", "remote_id": batch["remote_id"], "batch_id": batch["id"],
+                        "title": batch["title"], "content": batch["content"], "at": batch["run_at"],
+                        "state": batch["state"], "targets": [], "platforms": json.loads(batch["platforms"]),
+                        "has_image": bool(batch["has_image"]), "note": batch["note"]})
+    return sorted(records, key=lambda row: row["at"], reverse=True)[:100]
+
+
 def snapshot():
     connected = connection()
     platforms = [{"key": key, "label": name, "media": MEDIA_PLATFORMS.get(key, "")}
                  for key, name in PLATFORMS.items()]
     keep_alive = keepalive_status()
+    records = publication_records(connected["revision"] if connected else None)
     if connected is None:
         return {"connected": False, "platforms": platforms, "accounts": [], "batches": [], "posts": [],
-                "keep_alive": keep_alive}
+                "keep_alive": keep_alive, "records": records}
     revision = connected["revision"]
     db = get_db()
     posts = [{**dict(row), "targets": json.loads(row["targets"])} for row in db.execute(
@@ -374,7 +412,7 @@ def snapshot():
            WHERE connection_revision=? ORDER BY b.id DESC LIMIT 100""", (revision,))]
     return {"connected": True, "checked_at": connected["checked_at"], "platforms": platforms, "keep_alive": keep_alive,
             "accounts": json.loads(connected["accounts"]),
-            "batches": batches, "posts": posts}
+            "batches": batches, "posts": posts, "records": records}
 
 
 def scheduled():

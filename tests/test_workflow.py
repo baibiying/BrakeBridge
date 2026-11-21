@@ -502,6 +502,32 @@ class SalesWorkflowTest(unittest.TestCase):
             self.assertEqual(changed.status_code, 400)
             self.assertEqual(post.call_count, 1)
 
+    def test_dashboard_uses_inquiry_intake_dates_and_drilldown(self):
+        from datetime import timedelta
+        from workspace import local_today
+
+        today = local_today()
+        headers = {"X-CSRFToken": self.client.get("/api/session").json["csrf"]}
+        root = "/api/lead-inquiries"
+        active = self.client.post(root, headers=headers, data={"title": "试用采购",
+            "content": "询问重卡盘式刹车片 29030", "added_at": today.isoformat() + "T00:15:00+08:00"}).json["id"]
+        dropped = self.client.post(root, headers=headers, data={"content": "另一个询盘"}).json["id"]
+        self.client.post(f"{root}/{dropped}/delete", headers=headers)
+        with self.app.app_context(), get_db():
+            get_db().execute("UPDATE lead_inquiries SET owner=?,meeting_at=?,received_at=?,status='working' WHERE id=?",
+                             ("外贸组", today.isoformat() + "T14:00:00+08:00",
+                              (today + timedelta(days=1)).isoformat() + "T05:15:00+08:00", active))
+
+        board = self.client.get("/api/dashboard?kind=authorized").json
+        self.assertEqual(board["inquiries_count"], 1)
+        self.assertEqual(board["inquiry_sources"], {"manual": 1})
+        self.assertEqual(board["inquiry_states"]["working"]["count"], 1)
+        self.assertEqual(board["inquiry_daily"][-1], {"day": today.isoformat(), "count": 1})
+        self.assertTrue(any(task["resource"] == "lead" and task["id"] == active for task in board["tasks"]))
+        self.assertEqual(self.client.get("/api/dashboard?kind=synthetic").json["inquiries_count"], 0)
+        drilldown = self.client.get(f"{root}?kind=authorized&state=working&day={today.isoformat()}").json["items"]
+        self.assertEqual([row["id"] for row in drilldown], [active])
+
     def test_chat_gateway_handles_reasoning_and_structured_content(self):
         import research_agent
 

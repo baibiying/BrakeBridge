@@ -33,13 +33,13 @@ watch(() => props.kind, load, { immediate: true })
       <div v-for="group in groups" :key="group.key" class="lead-expo-group">
         <header><strong>{{ group.label }}</strong><span class="pill neutral">{{ data.groups[group.key].length }}</span></header>
         <RouterLink v-for="entry in data.groups[group.key].slice(0, 3)" :key="entry.id" class="lead-expo-row"
-          :to="{ path: '/lead-inquiries', query: { id: entry.id } }">
+          :to="{ path: '/lead-inquiries', query: { id: entry.id, kind: props.kind || undefined } }">
           <span><b>{{ entry.company }}</b><small>{{ entry.meeting_at ? dateTime(entry.meeting_at) : entry.next_action }}</small></span>
           <span class="pill" :class="leadTones[entry.analysis.tier]">{{ data.priorities[entry.analysis.tier]?.split(' · ')[0] }}</span>
         </RouterLink>
         <span v-if="!data.groups[group.key].length" class="muted">暂无记录</span>
       </div>
     </div>
-    <RouterLink class="action-link subtle" to="/lead-inquiries">打开询盘转化 <IconArrowUpRight :size="15" /></RouterLink>
+    <RouterLink class="action-link subtle" :to="{ path: '/lead-inquiries', query: { kind: props.kind || undefined } }">打开询盘转化 <IconArrowUpRight :size="15" /></RouterLink>
   </section>
 </template>

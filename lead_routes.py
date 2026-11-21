@@ -109,9 +109,12 @@ def register(app, event_for):
         q = request.args.get("q", "").strip().casefold()
         tier = request.args.get("tier")
         kind = request.args.get("kind")
+        state, day = request.args.get("state"), request.args.get("day")
         search = ("title", "company", "name", "mail", "address", "number")
         visible = [row for row in rows if (not kind or kind == row["data_kind"])
                    and (not tier or tier == row["analysis"]["tier"])
+                   and (not state or state == row["status"])
+                   and (not day or day == leads.intake_day(row))
                    and (not q or any(q in row["fields"].get(key, "").casefold() for key in search)
                         or q in brief(row)["company"].casefold())]
         return {"items": [brief(row) for row in visible], "priorities": leads.PRIORITIES, "states": leads.LEAD_STATES,
