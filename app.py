@@ -18,6 +18,7 @@ import agent_scoring
 import buyers
 import buyer_settings
 import company_seed
+from comment_desk import bp as comment_desk
 import facebook
 import facebook_replies
 import inquiries
@@ -75,6 +76,7 @@ def create_app(config=None):
     register_routes(app)
     lead_routes.register(app, event_details)
     social_routes.register(app, event_details)
+    app.register_blueprint(comment_desk)
     return app
 
 

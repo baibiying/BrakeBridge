@@ -3,6 +3,7 @@ import { watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NConfigProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
 import { IconLayoutDashboard, IconBuildingStore, IconLogout, IconRouteAltLeft, IconSettings, IconMailFast, IconSpeakerphone } from '@tabler/icons-vue'
+import { IconMessageSearch } from '@tabler/icons-vue'
 import { auth, errorText, logout, readMeta, ui } from './api'
 
 const route = useRoute()
@@ -13,6 +14,7 @@ const nav = [
   { to: '/lead-inquiries', label: '询盘转化', icon: IconMailFast },
   { to: '/buyers', label: '客户名单', icon: IconBuildingStore },
   { to: '/social', label: '社媒营销', icon: IconSpeakerphone },
+  { to: '/comment-desk', label: '线索承接', icon: IconMessageSearch },
   { to: '/settings', label: '系统设置', icon: IconSettings },
 ]
 const theme = { common: { primaryColor: '#315dea', primaryColorHover: '#234ccd', primaryColorPressed: '#1b3ca6',
