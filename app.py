@@ -14,6 +14,7 @@ from flask import Flask, Response, abort, current_app, flash, get_flashed_messag
 from flask_wtf.csrf import CSRFError, CSRFProtect
 from werkzeug.exceptions import HTTPException
 
+import agent_scoring
 import buyers
 import buyer_settings
 import facebook
@@ -21,6 +22,8 @@ import facebook_replies
 import inquiries
 import lead_routes
 import lead_inquiries
+import research_agent
+import sales_agent
 import social_routes
 import workspace
 from forms import BuyerImportForm, CommentForm, CommentImportForm
@@ -153,7 +156,9 @@ def register_routes(app):
         visible = [entry for entry in matching if not tier_filter or entry["tier"] in accepted]
         if api_request() and record_id is None:
             return {"items": [{"buyer": dict(entry["buyer"]), "tier": entry["tier"],
-                               "score": entry["score"]["total"]} for entry in visible]}
+                               "score": entry["score"]["total"], "score_state": entry["score"]["mix"]["state"],
+                               "ai_scored": entry["score"]["mix"]["ai"] is not None} for entry in visible],
+                    "agent_ready": research_agent.settings()["configured"]}
         if record_id is not None:
             visible = [entry for entry in display if entry["buyer"]["id"] == record_id]
             if not visible:
@@ -171,6 +176,8 @@ def register_routes(app):
             related = [{"id": row["id"], "company": row["company"], "evidence": finding, "procurement": has_purchase}
                        for row, finding, has_purchase in similar]
             return {**entry, "related": related, "linked": [dict(row) for row in linked],
+                    "agent_ready": research_agent.settings()["configured"],
+                    "agent_background": sales_agent.background_data("buyer", detail["buyer"]),
                     "mailto": invitation_mailto(detail["buyer"], event_details(app))}
         return render_template("buyers.html", entries=visible, all_entries=matching, detail=detail,
                                related=similar, linked=linked, evidence_groups=evidence_groups,
@@ -223,6 +230,10 @@ def register_routes(app):
         try:
             if action == "profile" and api_request():
                 return persist_profile(request.form, buyer)
+            if action == "ai-score" and api_request():
+                return sales_agent.score("buyer", buyer, force=request.form.get("force") == "1")
+            if action == "agent-background" and api_request():
+                return sales_agent.collect_background("buyer", buyer)
             if action == "assess":
                 analysis = buyers.ai_assess(evidence)
                 with db:
@@ -254,7 +265,11 @@ def register_routes(app):
                 flash("买家跟进已保存。")
             else:
                 abort(404)
+        except research_agent.ResearchUnavailable as error:
+            return workspace.error(str(error))
         except (ValueError, ModelUnavailable) as error:
+            if api_request() and action in {"ai-score", "agent-background"}:
+                return workspace.error(str(error))
             flash(str(error), "error")
         return action_result("buyer_list", buyer=buyer_id, view="follow" if action in {"invite", "save"} else None)
 
@@ -595,10 +610,12 @@ def buyer_data():
 def buyer_entries(records, sources):
     entries = []
     weights = buyer_settings.weights()
+    blend = agent_scoring.weights("buyer")
     for buyer in records:
-        tier, axes, score = buyers.evaluate(buyer, sources[buyer["id"]], weights)
+        tier, axes, score = buyers.evaluate(buyer, sources[buyer["id"]], weights, blend)
         entries.append({"buyer": buyer, "tier": tier, "axes": axes, "score": score, "evidence": sources[buyer["id"]]})
-    return sorted(entries, key=lambda entry: (list(buyers.TIER_LABELS).index(entry["tier"]), -entry["score"]["total"],
+    return sorted(entries, key=lambda entry: (list(buyers.TIER_LABELS).index(entry["tier"]),
+                                              entry["score"]["total"] is None, -(entry["score"]["total"] or 0),
                                               entry["buyer"]["company"].casefold()))
 
 

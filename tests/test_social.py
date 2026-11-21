@@ -1,16 +1,20 @@
+import gc
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import sleep
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from cryptography.fernet import Fernet
 
 from app import create_app
 import figeon
+import research_agent
 import social
+import social_assets
+import social_verification
 from social_providers import ProviderError
 from storage import get_db
 from workspace import init_admin
@@ -33,15 +37,16 @@ class SocialWorkflowTest(unittest.TestCase):
 
     @staticmethod
     def remove_database_directory(directory):
-        for attempt in range(5):
+        for attempt in range(8):
             try:
                 directory.cleanup()
                 return
             except OSError as error:
-                if getattr(error, "winerror", None) not in (32, 267) or attempt == 4:
+                if getattr(error, "winerror", None) not in (32, 267) or attempt == 7:
                     raise
-                # File indexing can briefly hold the SQLite test fixture on Windows.
-                sleep(.1)
+                # Release cached SQLite cursors and allow Windows indexing handles to close.
+                gc.collect()
+                sleep(.1 * (attempt + 1))
 
     def post(self, endpoint, status=200, **values):
         result = self.client.post("/api/social" + endpoint, data=values, headers={"X-CSRFToken": self.csrf})
@@ -140,6 +145,45 @@ class SocialWorkflowTest(unittest.TestCase):
             self.assertEqual(batch["state"], "uncertain")
             self.assertEqual([call.args[0] for call in service.call_args_list].count("publish"), 1)
 
+    def test_scheduled_figure_is_uploaded_on_publish_and_failure_stops_post(self):
+        image = bytes.fromhex("ffd8ff") + b"test-image"
+        with self.app.app_context(), get_db():
+            social_assets.store("29125", "盘式刹车片", "29125", image)
+            asset_id = social_assets.catalog()[0]["id"]
+        accounts = {"data": [{"platform": "facebook", "name": "Test", "status": "link"}]}
+        def vendor(operation, token, fields=None):
+            return accounts if operation == "accounts" else {"id": 456}
+        response = Mock(status_code=200)
+        response.json.return_value = {"status": 1, "data": {"img_url": ["/product/abc.jpg"]}}
+        form = {"title": "带图试稿", "body": "请核对产品。", "asset_id": asset_id, "platforms": ["facebook"]}
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        with patch("figeon.call", side_effect=vendor) as service, patch("figeon.requests.post", return_value=response) as upload:
+            self.post("/figeon/connect", token="fixture-explicit-auth-token")
+            batch = self.post("/figeon/release", **form, run_at=future.isoformat(), request_key=str(uuid4()))
+            items = self.client.get("/api/social/figeon/scheduled").json["items"]
+            self.assertEqual([item["id"] for item in items], [batch["batch_id"]])
+            self.assertTrue(items[0]["has_image"])
+            self.assertEqual(self.client.get(f"/api/social/versions/{items[0]['version_id']}/image").data, image)
+            with self.app.app_context():
+                self.assertEqual(figeon.run_due(), 0)
+                upload.assert_not_called()
+                with get_db():
+                    past = social.utc_stamp(datetime.now(timezone.utc) - timedelta(seconds=2))
+                    get_db().execute("UPDATE figeon_batches SET run_at=? WHERE id=?", (past, batch["batch_id"]))
+                self.assertEqual(figeon.run_due(), 1)
+            self.assertEqual(upload.call_args.args[0], figeon.UPLOAD)
+            self.assertEqual(upload.call_args.kwargs["data"]["platform"], "facebook")
+            self.assertEqual(upload.call_args.kwargs["files"]["file"][1], image)
+            self.assertEqual(service.call_args.args[2]["media"], "https://hqcdn.hqsmartcloud.com/product/abc.jpg")
+            self.assertEqual(service.call_args.args[2]["content"], form["body"])
+            self.assertEqual(self.client.get("/api/social/figeon/scheduled").json["items"], [])
+            response.json.return_value = {"status": 0, "msg": "无法上传"}
+            self.post("/figeon/release", **form, request_key=str(uuid4()))
+            with self.app.app_context():
+                self.assertEqual(figeon.run_due(), 0)
+            self.assertEqual([call.args[0] for call in service.call_args_list].count("publish"), 1)
+            self.assertEqual(self.client.get("/api/social/figeon").json["batches"][0]["state"], "failed")
+
     def test_edit_cancels_scheduled_figeon_batch(self):
         with patch("figeon.call", side_effect=self.vendor()):
             draft = self.schedule_figeon()
@@ -181,6 +225,42 @@ class SocialWorkflowTest(unittest.TestCase):
             setting = get_db().execute("SELECT value FROM settings WHERE key='figeon_vendor_login'").fetchone()[0]
             self.assertNotIn("fixture-password", setting)
 
+    def test_managed_credentials_can_be_read_after_restart_with_no_environment_key(self):
+        self.app.config["SOCIAL_TOKEN_KEY"] = ""
+        self.post("/verification/credentials", username="12345678901", password="fixture-password")
+        with patch("figeon.call", side_effect=self.vendor()):
+            self.post("/figeon/connect", token="fixture-explicit-auth-token")
+        self.post("/figeon/keepalive", enabled="1")
+        restarted = create_app({"TESTING": True, "DATABASE": self.app.config["DATABASE"], "SOCIAL_TOKEN_KEY": ""})
+        with restarted.app_context():
+            saved = social_verification.login_record()
+            self.assertEqual(social.credential({"active": True, "credential": saved["password"]}), "fixture-password")
+            self.assertEqual(figeon.access(figeon.connection()), "fixture-explicit-auth-token")
+            self.assertTrue(figeon.keepalive_status()["enabled"])
+
+    def test_keepalive_is_opt_in_throttled_and_stops_after_expiry(self):
+        current = datetime.now(timezone.utc)
+        with patch("figeon.call", side_effect=self.vendor()) as service:
+            self.post("/figeon/connect", token="fixture-explicit-auth-token")
+            with self.app.app_context():
+                self.assertFalse(figeon.check_keepalive(current))
+            self.assertEqual(self.post("/figeon/keepalive", enabled="1")["state"], "waiting")
+            with self.app.app_context():
+                self.assertTrue(figeon.check_keepalive(current))
+                self.assertFalse(figeon.check_keepalive(current + timedelta(minutes=5)))
+            self.assertEqual(service.call_count, 2)
+            service.side_effect = figeon.AuthorizationExpired("已过期")
+            with self.app.app_context():
+                self.assertTrue(figeon.check_keepalive(current + timedelta(minutes=10)))
+                self.assertFalse(figeon.check_keepalive(current + timedelta(minutes=30)))
+            self.assertEqual(service.call_count, 3)
+            state = self.client.get("/api/social/figeon").json["keep_alive"]
+            self.assertEqual(state["state"], "expired")
+            self.assertFalse(self.post("/figeon/keepalive", enabled="0")["enabled"])
+            with self.app.app_context():
+                self.assertFalse(figeon.check_keepalive(current + timedelta(minutes=40)))
+            self.assertEqual(service.call_count, 3)
+
     def test_generate_uses_preset_or_available_model(self):
         preset = self.post("/generate-article", topic="catalog", language="en", title="", body="")
         self.assertEqual(preset["engine"], "preset")
@@ -188,3 +268,29 @@ class SocialWorkflowTest(unittest.TestCase):
         with patch("social.available", return_value=True), patch("social.ask_json", return_value={"title": "AI 标题", "body": "润色后正文"}):
             generated = self.post("/generate-article", language="zh", title="手写标题", body="手写正文")
         self.assertEqual((generated["title"], generated["body"], generated["engine"]), ("AI 标题", "润色后正文", "ai"))
+
+    def test_sales_agent_grounding_photo_opt_in_and_saved_draft(self):
+        image = bytes.fromhex("ffd8ff") + b"test-image"
+        with self.app.app_context(), get_db():
+            social_assets.store("29125 · 盘式刹车片", "盘式刹车片", "29125", image)
+            asset_id = social_assets.catalog()[0]["id"]
+        url = "https://www.example.org/news/event"
+        response = {"title": "展前采购", "body": "带上零件号来交流。", "asset_id": asset_id}
+        response["news"] = [{"title": "展会动态", "url": url, "summary": "主办方公布议程",
+                             "published_on": datetime.now(social.leads.ZONE).date().isoformat()}]
+        cited = {research_agent.source_key(url): (url, "主办方公布议程")}
+        with patch("sales_agent.research_agent.settings", return_value={"configured": True}), \
+             patch("social.research_agent.ask", return_value=(response, cited)) as ask:
+            generated = self.post("/generate-article", live_news="1", use_images="1")
+            self.assertTrue(ask.call_args.kwargs["web"])
+            self.assertIn("2026 年浙江冠英企业介绍", [item["title"] for item in ask.call_args.args[1]["sources"]])
+            self.assertEqual(generated["asset_id"], asset_id)
+            self.assertIn(url, [item["url"] for item in generated["refs"]])
+            self.assertIsNone(self.post("/generate-article")["asset_id"])
+            self.assertEqual(ask.call_args.args[1]["素材"], [])
+            ask.return_value = (response, {})
+            self.post("/generate-article", live_news="1", status=400)
+        saved = self.post("/drafts", title=generated["title"], facebook=generated["body"], asset_id=asset_id)
+        self.assertEqual(self.client.get(f"/api/social/drafts/{saved['id']}").json["asset_id"], asset_id)
+        self.assertEqual(self.client.get(f"/api/social/versions/{saved['version_id']}/image").data, image)
+        self.assertEqual(self.app.test_client().get(f"/api/social/assets/{asset_id}/image").status_code, 401)

@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/inbox', redirect: to => ({ path: '/social', query: { ...to.query, tab: 'comments', source: 'history' } }) },
     { path: '/lead-inquiries', component: () => import('./pages/LeadInquiries.vue') },
     { path: '/social', component: () => import('./pages/SocialMarketing.vue') },
+    { path: '/social/scheduled', component: () => import('./pages/ScheduledPublishing.vue') },
     { path: '/settings', component: () => import('./pages/Settings.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],

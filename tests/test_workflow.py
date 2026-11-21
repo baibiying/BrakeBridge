@@ -292,7 +292,7 @@ class SalesWorkflowTest(unittest.TestCase):
         with upgraded.app_context():
             saved = get_db().execute("SELECT owner,draft,phone,importance FROM buyers").fetchone()
             self.assertEqual(tuple(saved), ("外贸组", "Saved invitation", "", None))
-            self.assertEqual(get_db().execute("PRAGMA user_version").fetchone()[0], 9)
+            self.assertEqual(get_db().execute("PRAGMA user_version").fetchone()[0], 10)
 
     def test_inquiry_history_import_and_alternative_draft(self):
         token = self.client.get("/api/session").json["csrf"]
@@ -470,6 +470,109 @@ class SalesWorkflowTest(unittest.TestCase):
             self.assertEqual(self.client.post(path + "/candidates/refresh", headers=headers).json["added"], 0)
             self.assertEqual(post.call_args.args[0], "https://api.openai.com/v1/responses")
         self.assertEqual(len(self.client.get(path).json["candidates"]), 1)
+
+    def test_custom_model_discovery_test_and_key_scoping(self):
+        from unittest.mock import Mock, patch
+
+        headers = {"X-CSRFToken": self.client.get("/api/session").json["csrf"]}
+        route = "/api/settings/competitor-agent"
+        base = "https://gateway.example.org/v1"
+        custom = {"provider": "custom", "base_url": base + "/chat/completions", "api_key": "gateway-fixture",
+                  "model": "org/model-1"}
+        discovered = Mock(status_code=200)
+        discovered.json.return_value = {"data": [{"id": "org/model-1"}, {"id": "org/model-1"}, {"id": "other"}]}
+        answered = Mock(status_code=200)
+        answered.json.return_value = {"choices": [{"message": {"content": '{"ok": true}'}}]}
+        addresses = [(None, None, None, "", ("1.1.1.1", 443))]
+        with patch("research_agent.socket.getaddrinfo", return_value=addresses), \
+             patch("research_agent.requests.get", return_value=discovered) as get, \
+             patch("research_agent.requests.post", return_value=answered) as post:
+            listed = self.client.post(route + "/models", json={**custom, "model": ""}, headers=headers)
+            self.assertEqual(listed.json["models"], ["org/model-1", "other"])
+            self.assertEqual(get.call_args.args[0], base + "/models")
+            self.assertTrue(self.client.post(route + "/test", json=custom, headers=headers).json["ok"])
+            self.assertEqual(post.call_args.args[0], base + "/chat/completions")
+            saved = self.client.post(route, json=custom, headers=headers).json
+            self.assertTrue(saved["configured"])
+            self.assertFalse(saved["web_ready"])
+            self.assertNotIn(custom["api_key"], json.dumps(saved))
+            self.assertIn("anthropic", saved["providers"])
+            alternate = {"provider": "custom", "base_url": "https://other.example.org/v1", "model": "org/model-1"}
+            changed = self.client.post(route + "/test", json=alternate, headers=headers)
+            self.assertEqual(changed.status_code, 400)
+            self.assertEqual(post.call_count, 1)
+
+    def test_ai_and_rule_scoring_for_both_modules_and_weight_extremes(self):
+        headers = {"X-CSRFToken": self.client.get("/api/session").json["csrf"]}
+        with self.app.app_context():
+            db = get_db()
+            with db:
+                buyer_id = db.execute("""INSERT INTO buyers(entity_key,company,country,domain,data_kind)
+                    VALUES('weight-case','Brake Supply','伊朗','brake-supply.test','authorized')""").lastrowid
+                db.execute("""INSERT INTO evidence(buyer_id,fingerprint,source_type,source_ref,as_of,source_text,data_kind)
+                    VALUES(?,'part-fit','website','https://brake-supply.test/about','','We sell truck brakes.','authorized')""",
+                           (buyer_id,))
+        buyer_rules = {"product": 50, "procurement": 50, "china": 0, "show": 0, "contact": 0}
+        self.assertEqual(self.client.post("/api/settings/buyer-scoring", json=buyer_rules, headers=headers).status_code, 200)
+        inquiry = self.client.post("/api/lead-inquiries", data={
+            "content": "Truck brake linings WVA 19486, 100 sets. Email confidential@example.test.", "address": "伊朗",
+        }, headers=headers).json["id"]
+        paths = {"buyer": f"/api/buyers/{buyer_id}", "inquiry": f"/api/lead-inquiries/{inquiry}"}
+
+        def current(path):
+            detail = self.client.get(path).json
+            return detail.get("inquiry", detail)["score"]
+
+        for scope, path in paths.items():
+            endpoint = "/api/settings/score-blend/" + scope
+            self.assertEqual(self.client.get(endpoint).json["weights"], {"rule": 50, "ai": 50})
+            self.assertEqual(current(path)["total"], 50)
+            self.assertEqual(current(path)["mix"]["state"], "provisional")
+            with patch("research_agent.ask", return_value=({"score": 70, "reason": "有具体制动产品线索"}, {})) as ask:
+                self.assertEqual(self.client.post(path + "/ai-score", headers=headers).status_code, 200)
+                self.assertNotIn("confidential@example.test", json.dumps(ask.call_args.args[1]))
+                self.assertTrue(self.client.post(path + "/ai-score", headers=headers).json["cached"])
+                self.assertEqual(ask.call_count, 1)
+            self.assertEqual(current(path)["total"], 60)
+            for rule, ai, expected in ((0, 100, 70), (100, 0, 50), (25, 75, 65)):
+                self.assertEqual(self.client.post(endpoint, json={"rule": rule, "ai": ai}, headers=headers).status_code, 200)
+                self.assertEqual(current(path)["total"], expected)
+        self.client.post(paths["inquiry"] + "/edit", data={"content": "Could you send a catalogue?"}, headers=headers)
+        self.assertTrue(current(paths["inquiry"])["mix"]["stale"])
+        self.assertEqual(current(paths["inquiry"])["mix"]["state"], "provisional")
+        self.client.post("/api/settings/score-blend/inquiry", json={"rule": 0, "ai": 100}, headers=headers)
+        self.assertIsNone(current(paths["inquiry"])["total"])
+        self.assertEqual(current(paths["inquiry"])["mix"]["state"], "pending")
+        rows = self.client.get("/api/lead-inquiries?sort=score_asc").json["items"]
+        self.assertIsNone(rows[-1]["score"])
+        self.assertEqual(current(paths["buyer"])["total"], 65)
+
+    def test_sales_agent_public_background_and_chinese_meeting_card(self):
+        import research_agent
+
+        headers = {"X-CSRFToken": self.client.get("/api/session").json["csrf"]}
+        inquiry_id = self.client.post("/api/lead-inquiries", data={"content": "Quote 100 sets of WVA 19486 truck brake linings."},
+                                      headers=headers).json["id"]
+        path = f"/api/lead-inquiries/{inquiry_id}"
+        identity = {"company": "Verified Brake", "domain": "verifiedbrake.test", "market": "伊朗",
+                    "source": "https://verifiedbrake.test/about", "quote": "Commercial truck parts."}
+        self.assertEqual(self.client.post(path + "/identity", data=identity, headers=headers).status_code, 200)
+        site, other = identity["source"], "https://other-entity.test/about"
+        response = {"facts": [{"label": "主营", "text": "该企业经营重卡配件", "url": site},
+                              {"label": "同名企业", "text": "其他主体", "url": other}]}
+        sources = {research_agent.source_key(url): (url, "Truck parts company") for url in (site, other)}
+        with patch("research_agent.ask", return_value=(response, sources)):
+            self.assertEqual(self.client.post(path + "/agent-background", headers=headers).status_code, 200)
+        facts = self.client.get(path).json["agent_background"]["facts"]
+        self.assertEqual([fact["url"] for fact in facts], [site])
+        result = {"goal": "围绕首批制动衬片安排报价", "questions": ["核对实际采购方", "确认 19486 的尺寸", "约定回报价时间"]}
+        with (patch("research_agent.settings", return_value={"configured": True}),
+              patch("research_agent.ask", return_value=(result, {})) as call):
+            self.assertEqual(self.client.post(path + "/dossier", headers=headers).status_code, 200)
+            self.assertIn("该企业经营重卡配件", call.call_args.args[1]["公开背调"])
+        card = self.client.get(path).json["inquiry"]["dossier"]
+        self.assertEqual(card["engine"], "agent")
+        self.assertEqual(card["questions"], result["questions"])
 
     def test_real_export_contract_edit_translation_and_recycle(self):
         root = "/api/lead-inquiries"

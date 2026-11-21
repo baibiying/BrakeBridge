@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NAlert, NButton, NCheckbox, NCheckboxGroup, NEmpty, NInput, NModal, NPopconfirm, NProgress, NSelect, NTabPane, NTabs, NTag } from 'naive-ui'
+import { NAlert, NButton, NCheckbox, NCheckboxGroup, NEmpty, NInput, NModal, NProgress, NSelect, NSwitch, NTabPane, NTabs, NTag } from 'naive-ui'
 import { IconCalendarTime, IconExternalLink, IconFileText, IconMessage, IconRefresh } from '@tabler/icons-vue'
 import { api, dateTime, errorText, query, safeUrl, submit } from '../api'
 import HelpTip from '../components/HelpTip.vue'
@@ -10,18 +10,20 @@ type Draft = { id: number; title: string }
 type Source = { id?: number; title: string; url: string; published_on?: string; summary: string }
 type Comment = { id: number; body: string; author: string; received_at: string; data_kind: string; source_url: string; lead_id?: number; analysis: { tier: string; intent: string; score: { total: number; note: string; parts: { label: string; points: number; max: number; evidence: string }[] } } }
 type Verification = { state: string; message: string; image_ready: boolean; expires_in?: number; configured?: boolean; account?: string }
-type DraftDetail = Draft & { facebook: string; linkedin: string; refs: Source[] }
-type Overview = { drafts: Draft[]; news: Source[]; model_ready: boolean; news_feeds: boolean }
+type DraftDetail = Draft & { facebook: string; linkedin: string; refs: Source[]; asset_id: number | null; version_id: number; has_image: boolean }
+type Asset = { id: number; title: string; category: string; model: string }
+type Overview = { drafts: Draft[]; news: Source[]; model_ready: boolean; agent_ready: boolean; web_ready: boolean; news_feeds: boolean; assets: Asset[] }
 type FigeonTarget = { platform: string; name: string; state: string; url: string; comments: boolean }
 type FigeonPost = { remote_id: number; title: string; content: string; created_at: string; status: number; targets: FigeonTarget[] }
-type FigeonBatch = { id: number; title: string; platforms: string[]; state: string; run_at: string; remote_id?: number; note: string }
-type Figeon = { connected: boolean; platforms: { key: string; label: string; media: string }[]; accounts: { platform: string; name: string; supported: boolean }[]; posts: FigeonPost[]; batches: FigeonBatch[] }
+type FigeonBatch = { id: number; title: string; platforms: string[]; state: string; run_at: string; remote_id?: number; note: string; has_image: boolean }
+type KeepAlive = { enabled: boolean; state: 'off' | 'waiting' | 'active' | 'expired' | 'unavailable'; checked_at: string }
+type Figeon = { connected: boolean; keep_alive?: KeepAlive; platforms: { key: string; label: string; media: string }[]; accounts: { platform: string; name: string; supported: boolean }[]; posts: FigeonPost[]; batches: FigeonBatch[] }
 
 const router = useRouter()
 const route = useRoute()
 const path = '/social'
 const stateType = { sent: 'success', failed: 'error', scheduled: 'info', partial: 'warning', uncertain: 'warning' } as const
-const tab = ref(route.query.tab === 'comments' ? 'comments' : 'compose')
+const tab = ref(route.query.tab === 'comments' ? 'comments' : route.query.tab === 'figeon' ? 'figeon' : 'compose')
 const work = ref('')
 const notice = ref('')
 const alert = ref('')
@@ -32,8 +34,6 @@ const verification = ref<Verification>()
 const code = ref('')
 const captchaKey = ref(0)
 const figeonData = ref<Figeon>()
-const figeonToken = ref('')
-const figeonEditor = ref(false)
 const feed = ref(route.query.source === 'history' ? 'history' : 'demo')
 const commentResults = ref<Comment[]>([])
 const commentBusy = ref(false)
@@ -53,9 +53,13 @@ const health = ref<{ state: string; message: string }>()
 const vendorLogin = ref({ username: '', password: '' })
 const editLogin = ref(false)
 const quick = ref({ title: '', body: '', topic: 'catalog', language: 'en', news_ids: [] as number[],
-  platforms: [] as string[], media: '', visibility: 'unlisted', timing: 'now', run_at: '' })
+  platforms: [] as string[], media: '', visibility: 'unlisted', timing: 'now', run_at: '',
+  use_images: false, live_news: false, asset_id: null as number | null, existing_image: null as number | null })
 const quickId = ref<number>()
 const quickReferences = ref<Source[]>([])
+const galleryOpen = ref(false)
+const previewOpen = ref(false)
+const galleryCategory = ref('')
 const requestKey = ref(crypto.randomUUID())
 let initializedTargets = false
 let receiptTimer: ReturnType<typeof setInterval> | undefined
@@ -65,6 +69,16 @@ const destinations = computed(() => (figeonData.value?.platforms ?? []).map(plat
   ...platform, account: figeonData.value?.accounts.find(account => account.platform === platform.key && account.supported),
 })))
 const mediaRequired = computed(() => destinations.value.some(item => item.media && quick.value.platforms.includes(item.key)))
+const assets = computed(() => overview.value?.assets ?? [])
+const categories = computed(() => [...new Set(assets.value.map(asset => asset.category))])
+const gallery = computed(() => assets.value.filter(asset => !galleryCategory.value || asset.category === galleryCategory.value))
+const selectedAsset = computed(() => assets.value.find(asset => asset.id === quick.value.asset_id))
+const attachedImage = computed(() => quick.value.asset_id ? assetUrl(quick.value.asset_id) :
+  quick.value.existing_image ? `/api/social/versions/${quick.value.existing_image}/image` : '')
+const videoConflict = computed(() => !!attachedImage.value && destinations.value.some(item => item.media === 'video' &&
+  quick.value.platforms.includes(item.key)))
+const previewMedia = computed(() => attachedImage.value || safeUrl(quick.value.media.trim()))
+const previewIsVideo = computed(() => !attachedImage.value && /\.(mp4|mov|avi|m4v|quicktime)(\?|#|$)/i.test(quick.value.media))
 const commentSources = computed(() => [
   { value: 'demo', label: '中文演示评论（30 条）' }, { value: 'history', label: 'Facebook 历史评论' },
   ...(figeonData.value?.posts ?? []).flatMap(post => post.targets.filter(target => target.comments).map(target => ({
@@ -79,9 +93,19 @@ const historyFilters = computed(() => query(Object.fromEntries(['message', 'stat
   [key, typeof route.query[key] === 'string' ? route.query[key] : undefined])) as Record<string, string | undefined>))
 const quickReady = computed(() => !!figeonData.value?.connected && health.value?.state !== 'unavailable' &&
   !!quick.value.title.trim() && !!quick.value.body.trim() && !!quick.value.platforms.length &&
-  (!mediaRequired.value || !!quick.value.media.trim()) && (quick.value.timing === 'now' || !!quick.value.run_at))
+  !videoConflict.value && (!mediaRequired.value || !!attachedImage.value || !!quick.value.media.trim()) &&
+  (quick.value.timing === 'now' || !!quick.value.run_at))
 const connectionLabel = computed(() => health.value?.state === 'unavailable' ? '飞鸽 · 连接异常' :
   figeonData.value?.connected ? '飞鸽 · 已连接' : '飞鸽 · 未连接')
+const keepAlive = computed(() => figeonData.value?.keep_alive)
+const keepAliveStatus = computed(() => {
+  if (!keepAlive.value?.enabled) return '已关闭'
+  const labels = {
+    off: '已关闭', waiting: '等待登录或首次检查', active: '会话可用',
+    expired: '授权已失效，请登录转单云并重新连接', unavailable: '暂时无法检查，稍后重试',
+  }
+  return labels[keepAlive.value.state]
+})
 const newsChoices = computed(() => {
   const merged = new Map<number, Source>()
   for (const item of [...(overview.value?.news ?? []), ...quickReferences.value]) {
@@ -94,6 +118,21 @@ function priorityTitle(tier: string) { return priorities.find(item => item.value
 function priorityTone(tier: string) { return tier === 'high' ? 'success' : tier === 'medium' ? 'info' : tier === 'review' ? 'warning' : 'default' }
 function openLead(id: number) { return router.push({ path: '/lead-inquiries', query: { id: String(id) } }) }
 function openHistory() { return router.replace({ path, query: { tab: 'comments', source: 'history' } }) }
+
+function assetUrl(id: number) { return `/api/social/assets/${id}/image` }
+
+function removeAsset() {
+  quick.value.asset_id = null
+  quick.value.existing_image = null
+  quick.value.media = ''
+}
+
+function pickAsset(id: number) {
+  removeAsset()
+  quick.value.asset_id = id
+  quick.value.platforms = quick.value.platforms.filter(key => !destinations.value.some(option => option.key === key && option.media === 'video'))
+  galleryOpen.value = false
+}
 
 async function run(label: string, action: () => Promise<void>) {
   if (work.value) return
@@ -135,35 +174,59 @@ async function refreshVendor() {
 
 function generateArticle() {
   run('generate-article', async () => {
-    const result = await submit<{ title: string; body: string; refs: Source[]; engine: string }>(
+    const result = await submit<{ title: string; body: string; refs: Source[]; engine: string; asset_id?: number | null }>(
       path + '/generate-article', multipart({ topic: quick.value.topic, language: quick.value.language,
-        title: quick.value.title, body: quick.value.body, news_ids: quick.value.news_ids }),
+        title: quick.value.title, body: quick.value.body, news_ids: quick.value.news_ids,
+        use_images: quick.value.use_images ? '1' : '', live_news: quick.value.live_news ? '1' : '' }),
     )
     Object.assign(quick.value, { title: result.title, body: result.body })
     quickReferences.value = result.refs
-    notice.value = result.engine === 'ai' ? '文章已生成，可继续修改后发布。' : '已生成企业预设草稿，可继续修改。当前未连接可用的 AI 模型。'
+    quick.value.news_ids = result.refs.flatMap(source => source.id === undefined ? [] : [source.id])
+    if (result.asset_id && quick.value.use_images) pickAsset(result.asset_id)
+    notice.value = result.engine === 'preset' ? '已填入企业预设草稿，可继续修改或选图。' : '文章已生成，可修改后保存草稿。'
+  })
+}
+
+function attachmentFields() {
+  return { asset_id: String(quick.value.asset_id ?? ''), keep_image: quick.value.existing_image ? '1' : '' }
+}
+
+function saveArticle() {
+  run('save-article', async () => {
+    const result = await submit<{ id: number }>(path + '/drafts' + (quickId.value ? '/' + quickId.value : ''), multipart({
+      title: quick.value.title, facebook: quick.value.body, linkedin: quick.value.body,
+      news_ids: quick.value.news_ids, ...attachmentFields(),
+    }))
+    quickId.value = result.id
+    requestKey.value = crypto.randomUUID()
+    await refresh()
+    notice.value = '已保存草稿。'
   })
 }
 
 function releaseArticle() {
   if (!quickReady.value) return
   run('release', async () => {
+    const scheduled = quick.value.timing === 'scheduled'
     const result = await submit<{ batch_id: number; duplicate: boolean }>(path + '/figeon/release', multipart({
       draft_id: String(quickId.value || ''), request_key: requestKey.value,
       title: quick.value.title, body: quick.value.body, news_ids: quick.value.news_ids,
       platforms: quick.value.platforms, media: quick.value.media, visibility: quick.value.visibility,
-      run_at: quick.value.timing === 'scheduled' ? quick.value.run_at : '',
+      run_at: quick.value.timing === 'scheduled' ? quick.value.run_at : '', ...attachmentFields(),
     }))
-    await refresh()
-    tab.value = 'figeon'
+    previewOpen.value = false
+    if (scheduled) { await router.push('/social/scheduled'); return }
     notice.value = result.duplicate ? '此稿件已进入队列。' : `飞鸽批次 #${result.batch_id} 已进入队列，可在这里查看回执。`
     startNewArticle()
+    tab.value = 'figeon'
+    await refresh()
   })
 }
 
 function startNewArticle() {
   quickId.value = undefined
   quickReferences.value = []
+  removeAsset()
   Object.assign(quick.value, { title: '', body: '', news_ids: [], media: '', timing: 'now', run_at: '' })
   requestKey.value = crypto.randomUUID()
 }
@@ -175,6 +238,9 @@ function openQuickDraft(id?: number) {
     quickId.value = draft.id
     quick.value.title = draft.title
     quick.value.body = draft.facebook || draft.linkedin
+    quick.value.media = ''
+    quick.value.asset_id = draft.asset_id
+    quick.value.existing_image = draft.has_image && !draft.asset_id ? draft.version_id : null
     quick.value.news_ids = draft.refs.flatMap(source => source.id === undefined ? [] : [source.id])
     quickReferences.value = draft.refs
     requestKey.value = crypto.randomUUID()
@@ -201,11 +267,12 @@ function showConnection() {
 
 function saveVendorLogin() {
   connectionAction('save-account', async () => {
-    try {
-      const result = await submit<{ account: string; configured: boolean }>(path + '/verification/credentials', vendorLogin.value)
-      verification.value = { state: 'idle', message: '', image_ready: false, ...result }
-      editLogin.value = false
-    } finally { vendorLogin.value.password = '' }
+    const result = await submit<{ account: string; configured: boolean }>(
+      path + '/verification/credentials', vendorLogin.value,
+    ).finally(() => { vendorLogin.value.password = '' })
+    verification.value = { state: 'idle', message: '', image_ready: false, ...result }
+    editLogin.value = false
+    await applyVerification('start')
   })
 }
 
@@ -227,43 +294,41 @@ function refreshNews() {
   })
 }
 
+async function applyVerification(step: 'start' | 'submit') {
+  try {
+    verification.value = { ...verification.value, ...await submit<Verification>(path + '/verification/' + step, { code: code.value }) }
+    captchaKey.value++
+    if (verification.value.state === 'verified') {
+      health.value = { state: 'connected', message: verification.value.message }
+      await refreshVendor()
+      await submit(path + '/figeon/sync')
+      await refreshVendor()
+    }
+  } catch (error) {
+    if (step === 'submit') await refreshVerification().catch(() => {})
+    throw error
+  } finally { code.value = '' }
+}
+
 function verify(step: 'start' | 'submit') {
-  connectionAction('verification', async () => {
-    try {
-      verification.value = { ...verification.value, ...await submit<Verification>(path + '/verification/' + step, { code: code.value }) }
-      captchaKey.value++
-      if (verification.value.state === 'verified') {
-        health.value = { state: 'connected', message: verification.value.message }
-        await refreshVendor()
-        await submit(path + '/figeon/sync')
-        await refreshVendor()
-      }
-    } finally { code.value = '' }
+  return connectionAction('verification', () => applyVerification(step))
+}
+
+function changeKeepAlive(enabled: boolean) {
+  return connectionAction('keepalive', async () => {
+    const status = await submit<KeepAlive>(path + '/figeon/keepalive', { enabled: enabled ? '1' : '0' })
+    if (figeonData.value) figeonData.value.keep_alive = status
+    await refreshVendor()
   })
+}
+
+async function refreshVerification() {
+  verification.value = await api<Verification>(path + '/verification')
 }
 
 function figeonName(platform: string) { return destinations.value.find(item => item.key === platform)?.label || platform }
 function figeonState(state: string) { return figeonStates[state] || state }
 function figeonNames(items: string[]) { return items.map(figeonName).join('、') }
-
-function connectFigeon() {
-  run('figeon-connect', async () => {
-    let token = figeonToken.value.trim()
-    try {
-      if (token.startsWith('http')) {
-        const url = new URL(token)
-        if (url.hostname !== 'figeon.hqsmartcloud.com') throw new Error('请填写飞鸽后台链接或授权令牌。')
-        token = url.searchParams.get('token') || ''
-      }
-      await submit(path + '/figeon/connect', { token })
-    } finally { figeonToken.value = '' }
-    figeonEditor.value = false
-    await refresh()
-    await submit(path + '/figeon/sync')
-    await refresh()
-    notice.value = '飞鸽帐号与历史文章已同步。'
-  })
-}
 
 function syncFigeon() {
   run('figeon-sync', async () => {
@@ -359,15 +424,18 @@ watch(() => route.query.tab, view => {
   if (view === 'comments') {
     feed.value = route.query.source === 'history' ? 'history' : 'demo'
     tab.value = 'comments'
-  }
+  } else if (view === 'figeon') tab.value = 'figeon'
 })
 watch(bindingOpen, open => { if (!open) bindingLink.value = '' })
 
 onMounted(async () => {
   await run('refresh', refresh)
   receiptTimer = setInterval(() => {
-    if (tab.value === 'figeon' && !work.value && figeonData.value?.batches.some(batch =>
-      ['scheduled', 'sending', 'submitted'].includes(batch.state))) void refreshVendor().catch(() => {})
+    const pending = tab.value === 'figeon' && figeonData.value?.batches.some(batch =>
+      ['scheduled', 'sending', 'submitted'].includes(batch.state))
+    if ((pending || connectionOpen.value) && !work.value && !connectionWork.value) void refreshVendor().catch(() => {})
+    if (connectionOpen.value && verification.value?.image_ready && !connectionWork.value)
+      void refreshVerification().catch(() => {})
   }, 8000)
 })
 onUnmounted(() => clearInterval(receiptTimer))
@@ -378,6 +446,7 @@ onUnmounted(() => clearInterval(receiptTimer))
     <header class="social-header">
       <div class="social-title"><h1>社媒营销</h1><HelpTip label="社媒营销">通过飞鸽发布文章，跟踪定时任务和平台回执，按采购意向筛选评论。</HelpTip></div>
       <div class="social-actions">
+        <NButton @click="router.push('/social/scheduled')"><template #icon><IconCalendarTime :size="17" /></template>定时发布</NButton>
         <NButton secondary :type="health?.state === 'unavailable' ? 'warning' : 'primary'" @click="showConnection">{{ connectionLabel }}</NButton>
         <NButton aria-label="刷新社媒工作台" :loading="work === 'refresh'" :disabled="!!work" @click="run('refresh', refresh)">
           <template #icon><IconRefresh :size="17" /></template>
@@ -406,13 +475,31 @@ onUnmounted(() => clearInterval(receiptTimer))
             <label class="social-field">正文<NInput v-model:value="quick.body" type="textarea" :maxlength="2800" :autosize="{ minRows: 7, maxRows: 15 }" placeholder="可填写原稿或要点，生成后也能直接修改" show-count /></label>
             <div class="social-actions">
               <NButton type="primary" secondary :disabled="!!work" :loading="work === 'generate-article'" @click="generateArticle">{{ overview?.model_ready ? 'AI 一键生成文章' : '一键生成文章' }}</NButton>
-              <NTag v-if="!overview?.model_ready" size="small" :bordered="false">企业预设</NTag>
+              <NButton :disabled="!!work || !quick.title.trim() || !quick.body.trim()" :loading="work === 'save-article'" @click="saveArticle">保存草稿</NButton>
+            </div>
+            <div class="article-assets">
+              <div class="social-actions">
+                <NCheckbox v-model:checked="quick.use_images" :disabled="!!work || !overview?.agent_ready || !assets.length">允许 Agent 插入企业图</NCheckbox>
+                <HelpTip label="自动配图">Agent 会根据正文从冠英素材库挑一张匹配的图片。也可手动挑图或移除。</HelpTip>
+                <NButton size="small" :disabled="!!work" @click="galleryOpen = true">企业素材库 · {{ assets.length }} 张</NButton>
+              </div>
+              <figure v-if="attachedImage" class="article-photo">
+                <img :src="attachedImage" :alt="selectedAsset?.title || '文章配图'" />
+                <figcaption>
+                  <strong>{{ selectedAsset?.title || '文章配图' }}</strong>
+                  <div class="social-actions">
+                    <a :href="attachedImage" download class="social-link">下载图片</a>
+                    <NButton size="tiny" text :disabled="!!work" @click="removeAsset">移除</NButton>
+                  </div>
+                </figcaption>
+              </figure>
             </div>
             <details class="figeon-options">
               <summary>载入已有稿件或选择新闻</summary>
               <label class="social-field">已有稿件<NSelect :value="quickId" clearable :options="(overview?.drafts ?? []).map(draft => ({ value: draft.id, label: draft.title }))" placeholder="选择稿件" @update:value="openQuickDraft" /></label>
-              <label class="social-field">新闻来源<NSelect v-model:value="quick.news_ids" multiple filterable :options="newsChoices" placeholder="选择已核对的新闻" /></label>
+              <label class="social-field">新闻来源<NSelect v-model:value="quick.news_ids" multiple filterable :options="newsChoices" placeholder="默认使用已收录的近期热点" /></label>
               <div class="social-actions">
+                <NCheckbox v-if="overview?.web_ready && overview.agent_ready" v-model:checked="quick.live_news" :disabled="!!work || !!quick.news_ids.length">生成时联网查新热点</NCheckbox>
                 <NButton size="small" @click="newsEditor = !newsEditor">{{ newsEditor ? '收起新闻录入' : '添加新闻' }}</NButton>
                 <NButton v-if="overview?.news_feeds" size="small" :disabled="!!work" :loading="work === 'refresh-news'" @click="refreshNews">读取新闻源</NButton>
               </div>
@@ -423,7 +510,7 @@ onUnmounted(() => clearInterval(receiptTimer))
                 <label class="social-field">可核实的要点<NInput v-model:value="newsEntry.summary" type="textarea" /></label>
                 <NButton attr-type="submit" size="small" :loading="work === 'add-news'" :disabled="!!work">保存新闻</NButton>
               </form>
-              <ul v-if="quickReferences.length" class="social-sources"><li v-for="source in quickReferences" :key="source.url"><a :href="safeUrl(source.url)" target="_blank" rel="noreferrer">{{ source.title }}</a></li></ul>
+              <ul v-if="quickReferences.length" class="social-sources"><li v-for="source in quickReferences" :key="source.url || source.title"><a v-if="safeUrl(source.url)" :href="safeUrl(source.url)" target="_blank" rel="noreferrer">{{ source.title }}</a><span v-else>{{ source.title }}</span></li></ul>
             </details>
           </section>
           <aside class="glass social-card">
@@ -437,16 +524,16 @@ onUnmounted(() => clearInterval(receiptTimer))
                 <div class="post-destinations">
                   <div v-for="platform in destinations" :key="platform.key" class="destination" :class="{ 'is-bound': platform.account }">
                     <NCheckbox :value="platform.key" :label="platform.label"
-                      :disabled="!platform.account || health?.state === 'unavailable'"
-                      :aria-disabled="!platform.account || health?.state === 'unavailable'" />
+                      :disabled="!platform.account || health?.state === 'unavailable' || (!!attachedImage && platform.media === 'video' && !quick.platforms.includes(platform.key))" />
                     <span class="destination-status" :class="{ 'is-bound': platform.account }" :title="platform.account?.name || undefined">
-                      {{ platform.account ? '已绑定' : '未绑定' }}
+                      {{ platform.account ? attachedImage && platform.media === 'video' ? '需视频' : '已绑定' : '未绑定' }}
                     </span>
                   </div>
                 </div>
               </NCheckboxGroup>
             </div>
-            <label v-if="mediaRequired" class="social-field">图片或视频链接<NInput v-model:value="quick.media" placeholder="https://" /><small class="social-muted">YouTube 和 TikTok 需要视频。Pinterest 使用图片，Instagram 支持图片或视频。</small></label>
+            <p v-if="attachedImage" class="social-hint">发送时自动上传配图至飞鸽。<template v-if="videoConflict">请取消选择仅支持视频的平台。</template></p>
+            <label v-else-if="mediaRequired" class="social-field">图片或视频链接<NInput v-model:value="quick.media" placeholder="https://" /><small class="social-muted">可从素材库选择图片。YouTube 和 TikTok 需要视频链接。</small></label>
             <label v-if="quick.platforms.includes('youtube')" class="social-field">YouTube 可见性<NSelect v-model:value="quick.visibility" :options="[
               {label:'不公开列出',value:'unlisted'}, {label:'公开',value:'public'}, {label:'私密',value:'private'},
             ]" /></label>
@@ -454,20 +541,17 @@ onUnmounted(() => clearInterval(receiptTimer))
               { label: '立即发送', value: 'now' }, { label: '定时发送', value: 'scheduled' },
             ]" /></label>
             <label v-if="quick.timing === 'scheduled'" class="social-field">发布时间（北京时间）<input v-model="quick.run_at" class="social-input" type="datetime-local" /></label>
-            <NPopconfirm @positive-click="releaseArticle">
-              <template #trigger><NButton type="primary" block :disabled="!!work || !quickReady" :loading="work === 'release'">{{ quick.timing === 'now' ? '发送文章' : '安排定时发送' }}</NButton></template>
-              确认将「{{ quick.title }}」{{ quick.timing === 'now' ? '发送' : '定时发送' }}到 {{ figeonNames(quick.platforms) }}？
-            </NPopconfirm>
+            <NButton type="primary" block :disabled="!!work || !quickReady" @click="previewOpen = true">预览并确认</NButton>
           </aside>
         </div>
       </NTabPane>
-      <NTabPane name="figeon" tab="发布任务">
+      <NTabPane name="figeon" tab="发布记录">
         <div class="social-grid vendor-grid">
           <section class="glass social-card">
-            <div class="social-heading"><h2>发布任务</h2><NButton v-if="figeonData?.connected" size="small" :disabled="!!work" :loading="work === 'figeon-sync'" @click="syncFigeon">同步飞鸽记录</NButton></div>
+            <div class="social-heading"><h2>发布记录</h2><NButton v-if="figeonData?.connected" size="small" :disabled="!!work" :loading="work === 'figeon-sync'" @click="syncFigeon">同步飞鸽记录</NButton></div>
             <div v-if="figeonData?.batches.length" class="social-list">
               <article v-for="batch in figeonData.batches" :key="batch.id" class="social-row">
-                <div class="social-row-main"><strong>{{ batch.title }}</strong><span>{{ figeonNames(batch.platforms) }} · {{ dateTime(batch.run_at) }}{{ batch.remote_id ? ' · 飞鸽 #' + batch.remote_id : '' }}</span>
+                <div class="social-row-main"><strong>{{ batch.title }}</strong><span>{{ figeonNames(batch.platforms) }} · {{ dateTime(batch.run_at) }}{{ batch.has_image ? ' · 图文' : '' }}{{ batch.remote_id ? ' · 飞鸽 #' + batch.remote_id : '' }}</span>
                   <span v-if="batch.note">{{ batch.note }}</span></div>
                 <NTag size="small" :type="jobTone(batch.state)" :bordered="false">{{ figeonState(batch.state) }}</NTag>
                 <NButton v-if="batch.state === 'scheduled'" size="small" :disabled="!!work" @click="cancelFigeon(batch.id)">取消任务</NButton>
@@ -494,13 +578,8 @@ onUnmounted(() => clearInterval(receiptTimer))
               <div class="social-row-main"><strong>{{ platform.label }}</strong><span v-if="platform.account?.name">{{ platform.account.name }}</span></div>
               <NTag size="small" :bordered="false" :type="platform.account ? 'success' : 'default'">{{ platform.account ? '已绑定' : '未绑定' }}</NTag>
             </div>
-            <NButton v-if="!figeonEditor" size="small" @click="showConnection">{{ figeonData?.connected ? '检查连接' : '连接飞鸽' }}</NButton>
-            <NButton v-if="!figeonEditor" size="small" quaternary @click="figeonEditor = true">使用令牌</NButton>
-            <NButton v-if="figeonData?.connected && !figeonEditor" size="small" quaternary :disabled="!!work" @click="prepareBinding">绑定平台</NButton>
-            <form v-else class="social-field" @submit.prevent="connectFigeon">
-              <label class="social-field">飞鸽授权<NInput v-model:value="figeonToken" type="password" autocomplete="off" placeholder="粘贴已登录飞鸽链接或令牌" /></label>
-              <NButton attr-type="submit" :disabled="!!work || !figeonToken.trim()" :loading="work === 'figeon-connect'">验证并同步</NButton>
-            </form>
+            <NButton size="small" @click="showConnection">{{ figeonData?.connected ? '检查连接' : '连接飞鸽' }}</NButton>
+            <NButton v-if="figeonData?.connected" size="small" quaternary :disabled="!!work" @click="prepareBinding">绑定平台</NButton>
           </aside>
         </div>
       </NTabPane>
@@ -550,6 +629,38 @@ onUnmounted(() => clearInterval(receiptTimer))
       </NTabPane>
 
     </NTabs>
+    <NModal v-model:show="previewOpen" preset="card" title="发布预览" :style="{ width: 'min(640px, 94vw)' }"
+      :mask-closable="!work" :close-on-esc="!work" :closable="!work">
+      <div class="publish-preview">
+        <div class="social-muted">{{ figeonNames(quick.platforms) }} · {{ quick.timing === 'scheduled' ? quick.run_at.replace('T', ' ') + ' 北京时间' : '立即发布' }}</div>
+        <h2>{{ quick.title }}</h2>
+        <p>{{ quick.body }}</p>
+        <video v-if="previewMedia && previewIsVideo" :src="previewMedia" controls preload="none" />
+        <img v-else-if="previewMedia" :src="previewMedia" :alt="selectedAsset?.title || '文章配图'" />
+      </div>
+      <p v-if="alert" class="social-error" role="alert">{{ alert }}</p>
+      <template #footer>
+        <div class="social-actions preview-footer">
+          <NButton :disabled="!!work" @click="previewOpen = false">返回编辑</NButton>
+          <NButton type="primary" :disabled="!quickReady || !!work" :loading="work === 'release'" @click="releaseArticle">{{ quick.timing === 'scheduled' ? '确认定时发布' : '确认发送' }}</NButton>
+        </div>
+      </template>
+    </NModal>
+    <NModal v-model:show="galleryOpen" preset="card" title="企业素材库" :style="{ width: 'min(840px, 94vw)' }">
+      <div v-if="assets.length" class="social-actions gallery-filters" aria-label="产品图片分类">
+        <NButton size="small" :secondary="!galleryCategory" @click="galleryCategory = ''">全部 {{ assets.length }}</NButton>
+        <NButton v-for="category in categories" :key="category" size="small" :secondary="galleryCategory === category"
+          @click="galleryCategory = category">{{ category }}</NButton>
+      </div>
+      <div v-if="gallery.length" class="asset-grid">
+        <button v-for="asset in gallery" :key="asset.id" type="button" class="asset-choice"
+          :aria-pressed="quick.asset_id === asset.id" @click="pickAsset(asset.id)">
+          <img :src="assetUrl(asset.id)" :alt="asset.title" loading="lazy" />
+          <span>{{ asset.title }}</span>
+        </button>
+      </div>
+      <NEmpty v-else description="素材库暂无产品图片" />
+    </NModal>
     <NModal v-model:show="bindingOpen" preset="card" title="绑定社媒平台" :style="{ width: 'min(460px, 94vw)' }">
       <p v-if="work === 'binding'" role="status">正在获取飞鸽授权页。</p>
       <p v-else-if="alert && !bindingLink" class="social-error" role="alert">{{ alert }}</p>
@@ -570,24 +681,36 @@ onUnmounted(() => clearInterval(receiptTimer))
         <NButton v-if="verification?.configured && !editLogin" size="tiny" quaternary @click="editLogin = true">修改</NButton>
       </div>
       <form v-if="editLogin" @submit.prevent="saveVendorLogin">
-        <label class="social-field">转单云帐号<NInput v-model:value="vendorLogin.username" autocomplete="username" /></label>
-        <label class="social-field">转单云密码<NInput v-model:value="vendorLogin.password" type="password" autocomplete="off" /></label>
-        <NButton attr-type="submit" size="small" :disabled="!!connectionWork || !vendorLogin.username.trim() || !vendorLogin.password" :loading="connectionWork === 'save-account'">保存帐号</NButton>
+        <label class="social-field">转单云帐号<NInput v-model:value="vendorLogin.username" autocomplete="username"
+          :input-props="{ 'aria-label': '转单云帐号' }" /></label>
+        <label class="social-field">转单云密码<NInput v-model:value="vendorLogin.password" type="password" autocomplete="off"
+          :input-props="{ 'aria-label': '转单云密码' }" /></label>
+        <NButton attr-type="submit" type="primary" :disabled="!!connectionWork || !vendorLogin.username.trim() || !vendorLogin.password" :loading="connectionWork === 'save-account'">保存并连接</NButton>
       </form>
       <p v-else-if="verification?.configured" class="social-muted">{{ verification.account || '已保存帐号' }}</p>
       <form v-if="verification?.image_ready" @submit.prevent="verify('submit')">
         <p class="social-muted" role="status">{{ verification.message }}</p>
         <img class="social-captcha" :src="`/api/social/verification/image?v=${captchaKey}`" alt="转单云本次登录验证码" />
-        <label class="social-field">验证码<NInput v-model:value="code" :maxlength="16" autocomplete="off" /></label>
+        <label class="social-field">验证码<NInput v-model:value="code" :maxlength="16" autocomplete="off"
+          :input-props="{ 'aria-label': '验证码' }" /></label>
         <NButton attr-type="submit" type="primary" :disabled="!!connectionWork || !code.trim()" :loading="connectionWork === 'verification'">提交验证码</NButton>
       </form>
-      <div v-else>
+      <div v-else-if="!editLogin">
         <p v-if="verification?.message" class="social-muted" role="status">{{ verification.message }}</p>
         <div class="social-actions">
           <NButton :loading="connectionWork === 'check'" :disabled="!!connectionWork" @click="showConnection">检查连通性</NButton>
           <NButton type="primary" :loading="connectionWork === 'verification'" :disabled="!!connectionWork || !verification?.configured" @click="verify('start')">登录转单云并连接</NButton>
         </div>
       </div>
+      <div class="keepalive-row">
+        <div>
+          <strong>会话保活</strong>
+          <p class="social-muted">{{ keepAliveStatus }}<span v-if="keepAlive?.checked_at"> · {{ dateTime(keepAlive.checked_at) }}</span></p>
+        </div>
+        <NSwitch aria-label="会话保活" :value="keepAlive?.enabled ?? false" :disabled="!!connectionWork || !figeonData"
+          :loading="connectionWork === 'keepalive'" @update:value="changeKeepAlive" />
+      </div>
+      <p class="social-muted">开启后每 10 分钟检查飞鸽会话。授权失效时，由管理员重新登录并填写当前验证码。</p>
     </NModal>
   </div>
 </template>
@@ -629,6 +752,24 @@ onUnmounted(() => clearInterval(receiptTimer))
 .social-sources summary { cursor: pointer; }
 .social-image { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
 .social-image img { max-width: 120px; max-height: 68px; object-fit: cover; border-radius: 7px; }
+.article-assets { margin-top: 14px; }
+.article-photo { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 12px;
+  background: #f4f7fb; border: 1px solid #e1e9f4; border-radius: 12px; padding: 8px; margin: 10px 0 0; }
+.article-photo img { width: 100%; height: 84px; object-fit: contain; background: #fff; border-radius: 8px; }
+.article-photo figcaption { display: grid; gap: 4px; font-size: 13px; }
+.publish-preview { display: grid; gap: 10px; max-height: min(65vh, 620px); overflow-y: auto; }
+.publish-preview h2, .publish-preview p { margin: 0; overflow-wrap: anywhere; }
+.publish-preview p { white-space: pre-wrap; line-height: 1.65; }
+.publish-preview img, .publish-preview video { display: block; width: 100%; max-height: 290px; object-fit: contain; background: #f2f5fa; border-radius: 12px; }
+.preview-footer { justify-content: flex-end; }
+.gallery-filters { margin-bottom: 12px; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; max-height: 65vh;
+  overflow-y: auto; padding: 3px; }
+.asset-choice { display: grid; gap: 7px; min-width: 0; padding: 7px; text-align: left; font: inherit; font-size: 12px;
+  color: #294769; background: #f4f7fc; border: 1px solid #e0e8f4; border-radius: 10px; cursor: pointer; }
+.asset-choice:hover, .asset-choice[aria-pressed="true"] { border-color: #4276b3; background: #eaf3ff; }
+.asset-choice:focus-visible { outline: 2px solid #4276b3; outline-offset: 2px; }
+.asset-choice img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #fff; border-radius: 7px; }
 .social-captcha { display: block; max-height: 100px; margin: 10px 0; border-radius: 4px; }
 .post-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .destination-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -642,6 +783,9 @@ onUnmounted(() => clearInterval(receiptTimer))
 .priority-filters, .comment-demo-notice { margin-bottom: 12px; }
 .receipts-title { margin: 18px 0 4px; }
 .connection-status { margin-bottom: 14px; }
+.keepalive-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2eaf4; }
+.keepalive-row p { margin: 2px 0 0; }
 .social-comment-tools { display: grid; grid-template-columns: minmax(0, 360px) max-content; gap: 10px; margin-bottom: 12px; align-items: center; }
 .social-check { font-size: 13px; justify-self: end; }
 .social-error { color: #9b332b; }

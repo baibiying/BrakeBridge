@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS facebook_replies (
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS reply_queue ON facebook_replies(stage, created_at);
+CREATE TABLE IF NOT EXISTS sales_agent_results (
+    scope TEXT NOT NULL CHECK (scope IN ('buyer','inquiry')),
+    record_id INTEGER NOT NULL, task TEXT NOT NULL,
+    fingerprint TEXT NOT NULL, data TEXT NOT NULL,
+    PRIMARY KEY (scope, record_id, task)
+);
 """
 
 PROFILE_COLUMNS = {
@@ -166,6 +172,13 @@ def init_app(app):
                 db.execute("""CREATE UNIQUE INDEX figeon_release_key ON figeon_batches(request_key)
                               WHERE request_key<>''""")
                 db.execute("PRAGMA user_version = 9")
+            if db.execute("PRAGMA user_version").fetchone()[0] < 10:
+                db.execute("""CREATE TABLE social_assets (
+                    id INTEGER PRIMARY KEY, digest TEXT NOT NULL UNIQUE, title TEXT NOT NULL,
+                    category TEXT NOT NULL, model TEXT NOT NULL, image BLOB NOT NULL
+                )""")
+                db.execute("ALTER TABLE social_versions ADD COLUMN asset_id INTEGER REFERENCES social_assets(id)")
+                db.execute("PRAGMA user_version = 10")
     app.teardown_appcontext(close_db)
 
 

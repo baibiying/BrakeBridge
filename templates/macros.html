@@ -5,7 +5,7 @@
 <section class="scorecard" aria-label="{{ label }}">
   <div class="scorecard-head">
     <h3>{{ label }}</h3>
-    <span class="score-number {{ score.tier }}">{{ score.total }} <small>/ 100</small></span>
+    <span class="score-number {{ score.tier }}">{% if score.total is none %}待 AI 评分{% else %}{{ score.total }} <small>/ 100</small>{% endif %}</span>
   </div>
   {% for item in score.parts %}
   <div class="score-row">

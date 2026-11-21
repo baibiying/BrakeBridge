@@ -2,8 +2,9 @@
 import hashlib
 import json
 import re
+import threading
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -13,6 +14,8 @@ from social_providers import ProviderError
 from storage import get_db
 
 ORIGIN = "https://market.hqsmartcloud.com"
+UPLOAD = ORIGIN + "/admin/SocialMedia/upload_new"
+CDN = "https://hqcdn.hqsmartcloud.com/"
 ENDPOINTS = {"accounts": "/admin/SocialMedia/getUserOauth", "posts": "/admin/SocialMedia/getDynamic",
              "publish": "/admin/Ayrshare/post", "comments": "/admin/Ayrshare/get_comment",
              "binding": "/admin/Ayrshare/generateJwt"}
@@ -22,6 +25,12 @@ PLATFORMS = {"facebook": "Facebook", "reddit": "Reddit", "telegram": "Telegram",
 COMMENTS = {"facebook", "instagram"}
 VIDEO = {".mp4", ".mov", ".avi", ".m4v", ".quicktime"}
 MEDIA_PLATFORMS = {"youtube": "video", "tiktok": "video", "instagram": "media", "pinterest": "image"}
+KEEPALIVE_KEY = "figeon_keepalive"
+KEEPALIVE_INTERVAL = timedelta(minutes=10)
+
+
+class AuthorizationExpired(ProviderError):
+    pass
 
 
 def call(operation, token, fields=None):
@@ -37,7 +46,7 @@ def call(operation, token, fields=None):
         raise ProviderError("飞鸽连接中断，请先核对远端记录。" if writing else "飞鸽连接中断，请稍后同步。",
                             uncertain=writing) from None
     if response.status_code in {401, 403}:
-        raise ProviderError("飞鸽授权已失效，请重新连接。")
+        raise AuthorizationExpired("飞鸽授权已失效，请重新连接。")
     if not 200 <= response.status_code < 300:
         raise ProviderError("飞鸽返回异常响应，请核对发送记录。", uncertain=writing)
     try:
@@ -47,10 +56,48 @@ def call(operation, token, fields=None):
     if not isinstance(document, dict) or document.get("status") not in (1, 2):
         message = str(document.get("msg", "")) if isinstance(document, dict) else ""
         if "授权" in message and ("过期" in message or "重新" in message):
-            raise ProviderError("飞鸽授权已失效，请重新连接。")
+            raise AuthorizationExpired("飞鸽授权已失效，请重新连接。")
         raise ProviderError("飞鸽未返回可确认的结果，请核对远端记录。" if writing else "飞鸽未返回可读取的记录。",
                             uncertain=writing)
     return document
+
+
+def upload_image(token, platforms, version):
+    mime = version["image_type"]
+    extension = {"image/jpeg": "jpg", "image/png": "png"}.get(mime)
+    if not extension or not version["image"]:
+        raise ValueError("稿件配图格式不受支持，请重新选择图片。")
+    try:
+        response = requests.post(
+            UPLOAD, data={"token": token, "platform": ",".join(platforms)},
+            files={"file": (f"brakebridge-{version['id']}.{extension}", version["image"], mime)},
+            timeout=(8, 40), allow_redirects=False,
+        )
+        if response.status_code in {401, 403}:
+            raise AuthorizationExpired("飞鸽授权已失效，请重新连接。")
+        if not 200 <= response.status_code < 300:
+            raise ValueError
+        result = response.json()
+        if result.get("status") == 0 and ("授权" in str(result.get("msg", ""))):
+            raise AuthorizationExpired("飞鸽授权已失效，请重新连接。")
+        if result.get("status") not in {1, 2}:
+            raise ValueError
+        urls = result["data"]["img_url"]
+        if not isinstance(urls, list) or not urls or not isinstance(urls[0], str):
+            raise ValueError
+        link = urls[0].strip()
+        parsed = urlsplit(link)
+        if not parsed.scheme and not parsed.netloc:
+            if not re.fullmatch(r"/?[A-Za-z0-9_./%+-]+", link) or ".." in link.split("/"):
+                raise ValueError
+            link = CDN + quote(link.lstrip("/"), safe="/%+")
+        elif parsed.scheme == "http" and parsed.hostname == urlsplit(CDN).hostname:
+            link = "https:" + link[5:]
+        if not social.public_url(link):
+            raise ValueError
+        return link
+    except (requests.RequestException, ValueError, AttributeError, TypeError, KeyError) as error:
+        raise ProviderError("飞鸽图片上传未完成，文章未提交。请检查连接后重新安排发布。") from error
 
 
 def account_list(token):
@@ -71,6 +118,90 @@ def access(row):
     if row is None:
         raise ValueError("请先连接飞鸽。")
     return social.credential({"active": True, "credential": row["credential"]})
+
+
+def keepalive_settings():
+    row = get_db().execute("SELECT value FROM settings WHERE key=?", (KEEPALIVE_KEY,)).fetchone()
+    return json.loads(row["value"]) if row else {
+        "enabled": False, "state": "off", "generation": 0, "revision": None,
+        "checked_at": "", "next_at": "",
+    }
+
+
+def save_keepalive(db, settings):
+    db.execute("""INSERT INTO settings(key,value) VALUES(?,?)
+                  ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+               (KEEPALIVE_KEY, json.dumps(settings)))
+
+
+def keepalive_status():
+    settings = keepalive_settings()
+    return {field: settings[field] for field in ("enabled", "state", "checked_at")}
+
+
+def set_keepalive(enabled):
+    db = get_db()
+    with social.write_transaction(db):
+        settings = keepalive_settings()
+        if settings["enabled"] != enabled:
+            settings.update(enabled=enabled, state="waiting" if enabled else "off", revision=None,
+                            generation=settings["generation"] + 1, checked_at="", next_at="")
+            save_keepalive(db, settings)
+    return keepalive_status()
+
+
+def check_keepalive(current=None):
+    if not keepalive_settings()["enabled"]:
+        return False
+    current = current or datetime.now(timezone.utc)
+    stamp = social.utc_stamp(current)
+    db = get_db()
+    with social.write_transaction(db):
+        settings = keepalive_settings()
+        connected = connection()
+        if not settings["enabled"] or connected is None:
+            return False
+        revision = connected["revision"]
+        same_session = settings["revision"] == revision
+        if same_session and (settings["state"] == "expired" or settings["next_at"] > stamp):
+            return False
+        settings.update(revision=revision, next_at=social.utc_stamp(current + KEEPALIVE_INTERVAL))
+        save_keepalive(db, settings)
+        generation = settings["generation"]
+
+    try:
+        account_list(access(connected))
+        state = "active"
+    except (AuthorizationExpired, ValueError):
+        state = "expired"
+    except ProviderError:
+        state = "unavailable"
+
+    with social.write_transaction(db):
+        settings = keepalive_settings()
+        if settings["enabled"] and settings["generation"] == generation and settings["revision"] == revision:
+            settings.update(state=state, checked_at=stamp)
+            save_keepalive(db, settings)
+    return True
+
+
+def start_keepalive(app):
+    if app.testing:
+        return
+    wake = threading.Event()
+    app.extensions["figeon_keepalive_wake"] = wake
+
+    def work():
+        while True:
+            wake.clear()
+            try:
+                with app.app_context():
+                    check_keepalive()
+            except Exception:
+                app.logger.warning("飞鸽保活检查未完成，将在下一轮重试。")
+            wake.wait(30)
+
+    threading.Thread(target=work, daemon=True, name="figeon-keepalive").start()
 
 
 def binding_url():
@@ -107,6 +238,12 @@ def connect(token):
                    (encrypted, revision, json.dumps(accounts, ensure_ascii=False), social.utc_stamp()))
         db.execute("""UPDATE figeon_batches SET state='cancelled',note='飞鸽会话已更新，请按新帐号重新审核'
                       WHERE state='scheduled' AND connection_revision<>?""", (revision,))
+        settings = keepalive_settings()
+        if settings["enabled"]:
+            current = datetime.now(timezone.utc)
+            settings.update(state="active", revision=revision, checked_at=social.utc_stamp(current),
+                            generation=settings["generation"] + 1, next_at=social.utc_stamp(current + KEEPALIVE_INTERVAL))
+            save_keepalive(db, settings)
     return len(accounts)
 
 
@@ -221,20 +358,33 @@ def snapshot():
     connected = connection()
     platforms = [{"key": key, "label": name, "media": MEDIA_PLATFORMS.get(key, "")}
                  for key, name in PLATFORMS.items()]
+    keep_alive = keepalive_status()
     if connected is None:
-        return {"connected": False, "platforms": platforms, "accounts": [], "batches": [], "posts": []}
+        return {"connected": False, "platforms": platforms, "accounts": [], "batches": [], "posts": [],
+                "keep_alive": keep_alive}
     revision = connected["revision"]
     db = get_db()
     posts = [{**dict(row), "targets": json.loads(row["targets"])} for row in db.execute(
         """SELECT remote_id,title,content,created_at,status,targets FROM figeon_posts
            WHERE connection_revision=? ORDER BY created_at DESC,remote_id DESC LIMIT 100""", (revision,))]
     batches = [{**dict(row), "platforms": json.loads(row["platforms"])} for row in db.execute(
-        """SELECT b.id,b.platforms,b.run_at,b.state,b.note,b.remote_id,v.title,v.revision
+        """SELECT b.id,b.platforms,b.run_at,b.state,b.note,b.remote_id,v.title,v.revision,
+                  v.image IS NOT NULL AS has_image
            FROM figeon_batches b JOIN social_versions v ON v.id=b.version_id
            WHERE connection_revision=? ORDER BY b.id DESC LIMIT 100""", (revision,))]
-    return {"connected": True, "checked_at": connected["checked_at"], "platforms": platforms,
+    return {"connected": True, "checked_at": connected["checked_at"], "platforms": platforms, "keep_alive": keep_alive,
             "accounts": json.loads(connected["accounts"]),
             "batches": batches, "posts": posts}
+
+
+def scheduled():
+    return [{**dict(row), "platforms": json.loads(row["platforms"])} for row in get_db().execute(
+        """SELECT b.id,b.platforms,b.run_at,b.content,v.id AS version_id,v.title,
+                  v.image IS NOT NULL AS has_image
+           FROM figeon_batches b JOIN social_versions v ON v.id=b.version_id
+           JOIN figeon_connection c ON c.revision=b.connection_revision
+           WHERE b.state='scheduled' AND b.run_at>b.updated_at
+           ORDER BY b.run_at,b.id LIMIT 100""")]
 
 
 def schedule(version_id, platforms, content_key, media, visibility, when, request_key=""):
@@ -243,15 +393,6 @@ def schedule(version_id, platforms, content_key, media, visibility, when, reques
     media = social.public_url(social.text(media, 2000, "媒体链接"))
     if not platforms or any(key not in PLATFORMS for key in platforms):
         raise ValueError("请选择已绑定且支持的飞鸽帐号。")
-    video = urlsplit(media).path.lower().endswith(tuple(VIDEO))
-    if "youtube" in platforms and (not video or visibility not in {"public", "unlisted", "private"}):
-        raise ValueError("YouTube 需要公开可读取的视频链接和可见性设置。")
-    if "tiktok" in platforms and not video:
-        raise ValueError("TikTok 需要公开可读取的 HTTPS 视频链接。")
-    if "instagram" in platforms and not media:
-        raise ValueError("Instagram 需要图片或视频。")
-    if "pinterest" in platforms and (not media or video):
-        raise ValueError("Pinterest 请使用 HTTPS 图片链接。")
     if content_key not in social.PLATFORMS:
         raise ValueError("请选择一个已审核的平台文案。")
     with social.write_transaction(db):
@@ -265,8 +406,17 @@ def schedule(version_id, platforms, content_key, media, visibility, when, reques
         if not version["approved_at"] or not version[content_key]:
             raise ValueError("请批准稿件并补齐所选文案。")
         content = version[content_key] + ("\n\n" + version["url"] if version["url"] else "")
-        if version["image"] and not media:
-            raise ValueError("此版本含配图，请为飞鸽选择可公开读取的 HTTPS 媒体链接。")
+        if version["image"]:
+            media = ""
+        video = urlsplit(media).path.lower().endswith(tuple(VIDEO))
+        if "youtube" in platforms and (not video or visibility not in {"public", "unlisted", "private"}):
+            raise ValueError("YouTube 需要公开视频链接和可见性设置。图片稿请取消选择 YouTube。")
+        if "tiktok" in platforms and not video:
+            raise ValueError("TikTok 需要公开视频链接。图片稿请取消选择 TikTok。")
+        if "instagram" in platforms and not (media or version["image"]):
+            raise ValueError("Instagram 需要图片或视频。")
+        if "pinterest" in platforms and (not (media or version["image"]) or video):
+            raise ValueError("Pinterest 请从素材库选图或填写 HTTPS 图片链接。")
         result = db.execute("""INSERT INTO figeon_batches(version_id,connection_revision,platforms,content,media,
                                visibility,run_at,state,updated_at,request_key) VALUES(?,?,?,?,?,?,?,'scheduled',?,?)
                                ON CONFLICT(version_id) DO NOTHING""",
@@ -275,7 +425,8 @@ def schedule(version_id, platforms, content_key, media, visibility, when, reques
     return result.rowcount
 
 
-def release(draft_id, request_key, title, body, selected, platforms, media, visibility, when):
+def release(draft_id, request_key, title, body, selected, platforms, media, visibility, when, *,
+            asset_id=None, keep_image=False):
     if not re.fullmatch(r"[0-9a-f-]{36}", request_key):
         raise ValueError("请刷新工作台再提交发布。")
     db = get_db()
@@ -288,7 +439,7 @@ def release(draft_id, request_key, title, body, selected, platforms, media, visi
         detail = social.draft_detail(draft_id) if draft_id else None
         current_refs = detail["refs"] if detail else ()
         refs = social.sources(selected, current_refs)
-        draft = social.save_draft(draft_id, title, body, body, "", refs, ("", None), False)
+        draft = social.save_draft(draft_id, title, body, body, "", refs, ("", None), keep_image, asset_id=asset_id)
         social.approve(draft["version_id"])
         schedule(draft["version_id"], platforms, "facebook", media, visibility, when, request_key)
         row = db.execute("SELECT id FROM figeon_batches WHERE request_key=?", (request_key,)).fetchone()
@@ -325,13 +476,23 @@ def run_due(limit=5):
             connected = connection()
             if connected is None or connected["revision"] != batch["connection_revision"]:
                 raise ValueError("飞鸽帐号已经更新，请重新安排发布。")
-            social.approved_version(batch["version_id"])
+            version = social.approved_version(batch["version_id"])
             token = access(connected)
             platforms = json.loads(batch["platforms"])
             if not set(platforms) <= {row["platform"] for row in account_list(token)}:
                 raise ValueError("部分目的帐号在飞鸽已解绑，请核对。")
+            media = batch["media"]
+            if version["image"] and not media:
+                media = upload_image(token, platforms, version)
+                with db:
+                    db.execute("UPDATE figeon_batches SET media=?,updated_at=? WHERE id=? AND state='sending'",
+                               (media, social.utc_stamp(), batch["id"]))
+                social.approved_version(batch["version_id"])
+                connected = connection()
+                if connected is None or connected["revision"] != batch["connection_revision"]:
+                    raise ValueError("飞鸽帐号已经更新，请重新安排发布。")
             response = call("publish", token, {"platform": ",".join(platforms), "title": batch["title"],
-                            "content": batch["content"], "media": batch["media"], "thumb": "",
+                            "content": batch["content"], "media": media, "thumb": "",
                             "visibility": batch["visibility"]})
             remote = identity(response.get("id"))
             if not remote:

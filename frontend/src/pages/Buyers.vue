@@ -8,13 +8,16 @@ import type { Buyer, BuyerDetail, BuyerRow, FollowUp } from '../types'
 import FileImport from '../components/FileImport.vue'
 import FollowUpForm from '../components/FollowUpForm.vue'
 import ProfileForm from '../components/ProfileForm.vue'
-import ScoreBars from '../components/ScoreBars.vue'
+import AgentScoreCard from '../components/AgentScoreCard.vue'
+import AgentBackgroundCard from '../components/AgentBackgroundCard.vue'
+import BatchAgentScore from '../components/BatchAgentScore.vue'
 import HelpTip from '../components/HelpTip.vue'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useMessage()
 const rows = ref<BuyerRow[]>([])
+const agentReady = ref(false)
 const loading = ref(false)
 const loadError = ref('')
 const detail = ref<BuyerDetail>()
@@ -38,8 +41,11 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const result = await api<{ items: BuyerRow[] }>('/buyers' + query({ q: q.value, tier: tier.value, kind: kind.value }))
-    if (version === listVersion) rows.value = result.items
+    const result = await api<{ items: BuyerRow[]; agent_ready: boolean }>('/buyers' + query({ q: q.value, tier: tier.value, kind: kind.value }))
+    if (version === listVersion) {
+      rows.value = result.items
+      agentReady.value = result.agent_ready
+    }
   } catch (error) { if (version === listVersion) loadError.value = errorText(error) }
   finally { if (version === listVersion) loading.value = false }
 }
@@ -74,8 +80,8 @@ async function action(name: string) {
   if (!id) return
   busy.value = name
   try {
-    const result = await submit(`/buyers/${id}/${name}`)
-    toast.success(result.messages?.at(-1) || '已完成')
+    const result = await submit<{ messages?: string[]; message?: string }>(`/buyers/${id}/${name}`, { force: name === 'ai-score' ? 1 : undefined })
+    toast.success(result.message || result.messages?.at(-1) || '已完成')
     await Promise.all([load(), loadDetail(id)])
     if (name === 'invite') await open(id, 'follow')
   } catch (error) { toast.error(errorText(error)) }
@@ -110,7 +116,10 @@ const columns = computed<DataTableColumns<BuyerRow>>(() => [
     h('span', buyer.customer_source || '—'), h('small', ui.meta?.kinds[buyer.data_kind] || buyer.data_kind),
   ]) },
   { title: '优先级', key: 'tier', width: 120, render: row => h('span', { class: ['pill', tones[row.tier]] }, ui.meta?.tiers[row.tier] || row.tier) },
-  { title: '评分', key: 'score', width: 110, render: row => h('span', { class: 'table-score' }, [h('strong', row.score), h('small', ' / 100')]) },
+  { title: '评分', key: 'score', width: 110, render: row => h('span', { class: 'table-score' }, [
+    h('strong', row.score ?? '待评分'), row.score != null ? h('small', ' / 100') : null,
+    row.score_state === 'provisional' ? h('small', { class: 'candidate-count' }, '暂用规则分') : null,
+  ]) },
   { title: '下次跟进', key: 'follow_up', width: 142, render: ({ buyer }) => buyer.follow_up || '—' },
   { title: '', key: 'action', width: 48, render: ({ buyer }) => h('button', { class: 'icon-button', type: 'button',
     'aria-label': `查看${buyer.company}画像`, onClick: () => open(buyer.id) }, [h(IconChevronRight, { size: 17 })]) },
@@ -121,6 +130,8 @@ const columns = computed<DataTableColumns<BuyerRow>>(() => [
   <header class="page-head">
     <div><h1>客户名单</h1><span class="date-caption">{{ rows.length }} 家客户</span></div>
     <div class="head-actions">
+      <BatchAgentScore prefix="/buyers" :ready="agentReady" :ids="rows.map(row => row.buyer.id)"
+        @done="load(); loadDetail(selected)" />
       <a class="action-link subtle" href="/export/buyers.csv"><IconDownload :size="17" />导出</a>
       <NButton @click="importOpen = true"><template #icon><IconUpload :size="17" /></template>导入</NButton>
       <NButton type="primary" @click="profile(null)"><template #icon><IconPlus :size="17" /></template>新增客户</NButton>
@@ -162,7 +173,9 @@ const columns = computed<DataTableColumns<BuyerRow>>(() => [
               <span><strong>下一步</strong><small>{{ ['hot', 'priority'].includes(detail.tier) ? '确认邀约或跟进时间' : detail.tier === 'review' ? '核对缺失的采购证据' : detail.tier === 'nurture' ? '观察后续采购信号' : '暂缓联系' }}</small></span>
               <NButton v-if="detail.tier !== 'defer'" size="small" @click="setQuery({ view: 'follow' })">{{ detail.buyer.draft ? '查看邀约' : '安排跟进' }}</NButton>
             </div>
-            <ScoreBars :score="detail.score" label="买家评分" />
+            <AgentScoreCard :score="detail.score" label="买家评分" :ready="detail.agent_ready" :busy="busy === 'ai-score'" @refresh="action('ai-score')" />
+            <AgentBackgroundCard :report="detail.agent_background" :ready="detail.agent_ready" :busy="busy === 'agent-background'"
+              @refresh="action('agent-background')" />
             <section class="surface">
               <div class="panel-title"><h3>证据核验</h3><HelpTip label="证据核验">官网支持品类判断，贸易或核实记录支持采购判断。来华与到展依据分别记录。</HelpTip></div>
               <div v-for="(label, key) in ui.meta?.axes" :key="key" class="evidence-check">

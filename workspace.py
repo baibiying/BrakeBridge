@@ -67,6 +67,7 @@ def register(app):
     @app.get("/settings")
     @app.get("/lead-inquiries")
     @app.get("/social")
+    @app.get("/social/scheduled")
     def workspace_page():
         return frontend_shell()
 

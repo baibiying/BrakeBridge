@@ -35,6 +35,6 @@ function tabProps(name: string): HTMLAttributes {
     <NTabPane id="settings-panel-inquiry" role="tabpanel" aria-labelledby="settings-tab-inquiry"
       name="inquiry" tab="询盘评分" :tab-props="tabProps('inquiry')" display-directive="show:lazy"><ScoringWeights scope="inquiry" /></NTabPane>
     <NTabPane id="settings-panel-research" role="tabpanel" aria-labelledby="settings-tab-research"
-      name="research" tab="竞品研究 Agent" :tab-props="tabProps('research')" display-directive="show:lazy"><ResearchSettings /></NTabPane>
+      name="research" tab="销售 Agent" :tab-props="tabProps('research')" display-directive="show:lazy"><ResearchSettings /></NTabPane>
   </NTabs>
 </template>

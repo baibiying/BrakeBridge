@@ -1,6 +1,8 @@
 import csv
 import hashlib
 import json
+import os
+import tempfile
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -8,17 +10,26 @@ from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 import requests
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from flask import current_app
 
 import inquiries
 import lead_inquiries as leads
+import research_agent
+import social_assets
 from model_client import ModelUnavailable, ask_json, available
 import social_providers as providers
 from storage import get_db
 
 COMPANY_SOURCE = {"title": "冠英官方产品目录", "url": "https://www.kooying.com/product/",
                   "summary": "冠英提供商用车制动衬片、盘式刹车片和制动蹄等产品。展会和技术信息以已核资料为准。"}
+COMPANY_PROFILE = {
+    "title": "2026 年浙江冠英企业介绍",
+    "url": "",
+    "summary": "浙江冠英汽车零部件有限公司（ZHEJIANG KOOYING AUTOPARTS CO., LTD.）位于浙江湖州，"
+               "始创于 2006 年，开展商用车盘式及鼓式刹车片研发、生产和服务。依据企业介绍第 2 页。",
+}
+NEWS_DAYS = 21
 PLATFORMS = providers.PLATFORMS
 JOB_STATES = {"scheduled": "待发布", "sending": "发布中", "sent": "已发布", "failed": "失败",
               "uncertain": "待核对", "cancelled": "已取消", "blocked": "需重新连接"}
@@ -70,11 +81,42 @@ def public_url(value):
 
 
 def cipher():
-    configured = current_app.config["SOCIAL_TOKEN_KEY"]
+    database = Path(current_app.config["DATABASE"]).resolve()
+    managed = database.with_name(database.name + ".social-token.key")
+    legacy = database.with_name("social-token.key")
+    configured = (current_app.config.get("SOCIAL_TOKEN_KEY") or "").encode()
+    if configured:
+        try:
+            Fernet(configured)
+        except ValueError:
+            configured = b""
     try:
-        return Fernet(configured.encode())
-    except (TypeError, ValueError) as error:
-        raise ValueError("请配置社媒帐号加密密钥 SOCIAL_TOKEN_KEY。") from error
+        if not managed.is_file():
+            with write_transaction(get_db()):
+                if not managed.is_file():
+                    material = configured or (legacy.read_bytes().strip() if legacy.is_file() else Fernet.generate_key())
+                    Fernet(material)
+                    with tempfile.NamedTemporaryFile(dir=managed.parent, prefix=managed.name + ".", delete=False) as handle:
+                        temporary = Path(handle.name)
+                        try:
+                            handle.write(material)
+                            handle.flush()
+                            os.fsync(handle.fileno())
+                        except OSError:
+                            handle.close()
+                            temporary.unlink(missing_ok=True)
+                            raise
+                    try:
+                        os.replace(temporary, managed)
+                    finally:
+                        temporary.unlink(missing_ok=True)
+        primary = managed.read_bytes().strip()
+        keys = [Fernet(primary)]
+        if configured and configured != primary:
+            keys.append(Fernet(configured))
+        return MultiFernet(keys)
+    except (OSError, ValueError) as error:
+        raise ValueError("无法读取本机凭据存储，请检查工作台数据目录的读写权限。") from error
 
 
 def credential(account):
@@ -136,7 +178,7 @@ def store_news(title, url, published_on, summary):
     if published > datetime.now(leads.ZONE).date():
         raise ValueError("新闻发布日期不能晚于今天。")
     db = get_db()
-    with db:
+    with write_transaction(db):
         db.execute("""INSERT INTO social_news(title,url,published_on,summary) VALUES (?,?,?,?)
                       ON CONFLICT(url) DO UPDATE SET title=excluded.title,published_on=excluded.published_on,summary=excluded.summary""",
                    (title, url, published.isoformat(), summary))
@@ -146,7 +188,7 @@ def news():
     today = datetime.now(leads.ZONE).date()
     return [dict(row) for row in get_db().execute("""SELECT * FROM social_news WHERE published_on BETWEEN ? AND ?
                                                       ORDER BY published_on DESC,id DESC LIMIT 40""",
-                                                  ((today - timedelta(days=13)).isoformat(), today.isoformat()))]
+                                                  ((today - timedelta(days=NEWS_DAYS - 1)).isoformat(), today.isoformat()))]
 
 
 def node_text(element, path):
@@ -180,7 +222,7 @@ def refresh_news():
                     if not parsed:
                         continue
                     published = datetime.fromisoformat(parsed).astimezone(leads.ZONE).date()
-                    if published < datetime.now(leads.ZONE).date() - timedelta(days=13):
+                    if published < datetime.now(leads.ZONE).date() - timedelta(days=NEWS_DAYS - 1):
                         continue
                     html = leads.PlainHTML()
                     html.feed(description[:12000])
@@ -196,7 +238,7 @@ def refresh_news():
 def sources(selected, saved=()):
     selected = {int(value) for value in selected}
     snapshots = {item["id"]: item for item in [*news(), *saved] if item.get("id") in selected}
-    return [COMPANY_SOURCE, *snapshots.values()]
+    return [COMPANY_SOURCE, COMPANY_PROFILE, *snapshots.values()]
 
 
 def polish(title, body, selected, event):
@@ -221,14 +263,71 @@ def polish(title, body, selected, event):
     return {"facebook": body, "linkedin": body, "refs": refs, "engine": "manual"}
 
 
-def generate_article(topic, language, title, body, selected, event):
+def record_article_news(items, cited, today):
+    message = "本次热点来源无法完整核对。可关闭联网后使用工作台已收录的热点重新生成。"
+    if not isinstance(items, list) or len(items) > 3:
+        raise ValueError(message)
+    earliest = today - timedelta(days=NEWS_DAYS - 1)
+    db = get_db()
+    verified = {}
+    try:
+        with write_transaction(db):
+            for item in items:
+                url = public_url(text(item["url"], 1600, "来源链接"))
+                actual_url, _ = cited[research_agent.source_key(url)]
+                published = date.fromisoformat(item["published_on"])
+                if not earliest <= published <= today:
+                    raise ValueError(message)
+                store_news(item["title"], actual_url, published.isoformat(), item["summary"])
+                verified[actual_url] = dict(db.execute("SELECT * FROM social_news WHERE url=?", (actual_url,)).fetchone())
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise ValueError(message) from error
+    return list(verified.values())
+
+
+def generate_article(topic, language, title, body, selected, event, *, use_images=False, live_news=False):
     if topic not in TOPICS or language not in TOPICS[topic]:
         raise ValueError("请选择文章主题和语言。")
     default_title, default_body = TOPICS[topic][language]
     title = text(title, 160, "标题") or default_title
     body = text(body, 2800, "企业原稿") or default_body
-    refs = sources(selected)
-    if available():
+    recent = news()
+    refs = sources(selected or [item["id"] for item in recent[:3]])
+    assets = social_assets.catalog() if use_images else []
+    if research_agent.settings()["configured"]:
+        today = datetime.now(leads.ZONE).date()
+        prompt = (
+            "为浙江冠英写一条国际商用车制动件社媒推广草稿。按语言输出 title 和 body 两个字符串，正文最多 2800 字。"
+            "企业事实应来自资料；正文要让商用车制动件进口商或分销商知道下一步可提供哪些信息。"
+            "结合真正相关的行业热点并标明来源名称，无法核实就省略。严禁承诺未经核实的展位、参展、认证、适配、价格、交期。"
+            "配图仅从素材中选一张与正文直接匹配的产品图，返回整数 asset_id；没有合适的图就返回 null。"
+        )
+        search = live_news and not selected
+        if search:
+            prompt += (
+                "使用联网工具搜索最近三周内与商用车、汽配后市场或上海汽配展相关的主办方或机构原始发布。"
+                "只用公开证据，查证发布日期而非活动日期。news 数组只列正文实际采用的新增来源，最多 3 条，"
+                "每条包含 title、url（搜索工具返回的原始 URL）、published_on（YYYY-MM-DD）、summary（中文要点）。"
+                "找不到可验证来源，正文只使用给定资料，news 返回空数组。"
+            )
+        try:
+            output, cited = research_agent.ask(prompt, {
+                "title": title, "original": body, "language": language, "sources": refs,
+                "verified_event": event, "素材": assets, "today": today.isoformat(),
+            }, web=search)
+        except research_agent.ResearchUnavailable as error:
+            raise ValueError(str(error)) from error
+        if not all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= limit
+                   for key, limit in (("title", 160), ("body", 2800))):
+            raise ValueError("销售 Agent 未返回有效的文章草稿，请重试。")
+        items = output.get("news", [])
+        if search and items:
+            verified = record_article_news(items, cited, today)
+            refs = list({item["url"]: item for item in [*refs, *verified]}.values())
+        asset_id = output.get("asset_id")
+        return {"title": output["title"].strip(), "body": output["body"].strip(), "refs": refs, "engine": "agent",
+                "asset_id": asset_id if type(asset_id) is int and any(item["id"] == asset_id for item in assets) else None}
+    if available() and not use_images:
         try:
             output = ask_json(
                 "为冠英写一条可跨平台发布的商用车制动件推广短文。只返回 title 和 body 两个字符串。"
@@ -257,7 +356,7 @@ def image_payload(upload):
     raise ValueError("请上传一张 JPG 或 PNG。")
 
 
-def save_draft(draft_id, title, facebook, linkedin, url, refs, photo, keep_image):
+def save_draft(draft_id, title, facebook, linkedin, url, refs, photo, keep_image, *, asset_id=None):
     title = text(title, 160, "标题")
     facebook = text(facebook, 2800, "Facebook 文案")
     linkedin = text(linkedin, 2800, "LinkedIn 文案")
@@ -266,6 +365,8 @@ def save_draft(draft_id, title, facebook, linkedin, url, refs, photo, keep_image
         raise ValueError("请填写标题和至少一个平台的文案。")
     db = get_db()
     now = utc_stamp()
+    if asset_id is not None:
+        photo = social_assets.attachment(asset_id)
     with write_transaction(db):
         if draft_id is None:
             draft_id = db.execute("INSERT INTO social_drafts(title,created_at,updated_at) VALUES (?,?,?)",
@@ -277,10 +378,11 @@ def save_draft(draft_id, title, facebook, linkedin, url, refs, photo, keep_image
                 raise ValueError("稿件不存在。")
             revision = draft["current_version"] + 1
             if keep_image and photo[1] is None:
-                old = db.execute("SELECT image_type,image FROM social_versions WHERE draft_id=? AND revision=?",
+                old = db.execute("SELECT image_type,image,asset_id FROM social_versions WHERE draft_id=? AND revision=?",
                                  (draft_id, draft["current_version"])).fetchone()
                 if old:
                     photo = (old["image_type"], old["image"])
+                    asset_id = old["asset_id"]
             db.execute("""UPDATE social_jobs SET state='cancelled',note='稿件已改动，请审核新版本',updated_at=?
                           WHERE version_id IN (SELECT id FROM social_versions WHERE draft_id=?)
                             AND state IN ('scheduled','failed','blocked')""", (now, draft_id))
@@ -288,9 +390,9 @@ def save_draft(draft_id, title, facebook, linkedin, url, refs, photo, keep_image
                           WHERE version_id IN (SELECT id FROM social_versions WHERE draft_id=?) AND state='scheduled'""",
                        (now, draft_id))
         version_id = db.execute("""INSERT INTO social_versions(draft_id,revision,title,facebook,linkedin,url,
-                                  image_type,image,refs,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                  image_type,image,refs,created_at,asset_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                                 (draft_id, revision, title, facebook, linkedin, url, *photo,
-                                 json.dumps(refs, ensure_ascii=False), now)).lastrowid
+                                 json.dumps(refs, ensure_ascii=False), now, asset_id)).lastrowid
         db.execute("UPDATE social_drafts SET title=?,current_version=?,updated_at=? WHERE id=?", (title, revision, now, draft_id))
     return {"id": draft_id, "version_id": version_id, "revision": revision}
 
@@ -303,7 +405,7 @@ def drafts():
 
 def draft_detail(draft_id):
     row = get_db().execute("""SELECT v.id AS version_id,v.draft_id AS id,v.revision,v.title,v.facebook,v.linkedin,v.url,
-                              v.refs,v.approved_at,v.image IS NOT NULL AS has_image FROM social_drafts d
+                              v.refs,v.approved_at,v.asset_id,v.image IS NOT NULL AS has_image FROM social_drafts d
                               JOIN social_versions v ON v.draft_id=d.id AND v.revision=d.current_version WHERE d.id=?""",
                            (draft_id,)).fetchone()
     return ({**dict(row), "refs": json.loads(row["refs"])} if row else None)

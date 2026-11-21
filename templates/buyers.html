@@ -40,7 +40,7 @@
         <td><a class="record-link" href="{{ url_for('buyer_list', buyer=b.id, q=query, tier=tier_filter, kind=kind_filter) }}#record"
             {% if selected %}aria-current="true"{% endif %}>{{ b.company }}</a>
             <span class="record-meta">{{ b.country or '市场待核' }} · {{ kinds[b.data_kind] }}</span></td>
-        <td class="list-score {{ entry.score.tier }}">{{ entry.score.total }}</td>
+        <td class="list-score {{ entry.score.tier }}">{{ entry.score.total if entry.score.total is not none else '待 AI 评分' }}</td>
         <td>{{ status(tiers[entry.tier], entry.tier) }}</td>
         <td class="wide-col text-secondary">{{ '邀请函就绪' if b.draft and b.status == 'new' else buyer_states[b.status] }}</td>
         <td class="row-arrow">{{ icon('chevron-right') }}</td>

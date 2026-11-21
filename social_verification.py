@@ -146,6 +146,13 @@ def session(session_key):
         return current_app.extensions.setdefault("social_verifications", {}).get(session_key)
 
 
+def discard(session_key):
+    with SESSIONS_LOCK:
+        active = current_app.extensions.setdefault("social_verifications", {}).pop(session_key, None)
+    if active is not None:
+        active.close()
+
+
 def start(session_key):
     if not configured():
         raise ValueError("请先保存转单云帐号和密码。")

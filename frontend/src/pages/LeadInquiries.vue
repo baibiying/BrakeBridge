@@ -8,7 +8,9 @@ import type { Connections, Intake, LeadBrief, LeadDetail, LeadList, PublicIdenti
 import { leadTones } from '../lead-types'
 import HelpTip from '../components/HelpTip.vue'
 import LeadTranslation from '../components/LeadTranslation.vue'
-import ScoreBars from '../components/ScoreBars.vue'
+import AgentScoreCard from '../components/AgentScoreCard.vue'
+import AgentBackgroundCard from '../components/AgentBackgroundCard.vue'
+import BatchAgentScore from '../components/BatchAgentScore.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -241,7 +243,8 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
   { title: '优先级', key: 'priority', width: 160, render: row => h('span', { class: ['pill', leadTones[row.analysis.tier]] },
     results.value?.priorities[row.analysis.tier] || row.analysis.tier) },
   { title: '询盘评分', key: 'score', width: 105, render: row => h('span', { class: 'table-score' }, [
-    h('strong', row.score), h('small', ' / 100'),
+    h('strong', row.score ?? '待评分'), row.score != null ? h('small', ' / 100') : null,
+    row.score_state === 'provisional' ? h('small', { class: 'candidate-count' }, '暂用规则分') : null,
     row.candidate_count ? h('small', { class: 'candidate-count' }, `${row.candidate_count} 家竞品或渠道`) : null,
   ]) },
   { title: '下一步', key: 'action', minWidth: 150, render: row => row.next_action || '—' },
@@ -259,6 +262,8 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
   <header class="page-head">
     <div><h1>询盘转化</h1><span class="date-caption">{{ rows.length }} 条{{ filter.deleted ? '已删除' : '' }}询盘</span></div>
     <div class="head-actions">
+      <BatchAgentScore v-if="!filter.deleted" :prefix="root" :ready="!!results?.agent_ready" :ids="rows.map(row => row.id)"
+        @done="load(); loadDetail(selected)" />
       <NButton @click="toggleTrash">{{ filter.deleted ? '返回询盘列表' : '回收站' }}</NButton>
       <NButton @click="popupOpen('status'); loadStatus()">接入状态</NButton>
       <NButton :disabled="!connections?.mailbox_ready" :loading="pending === 'sync'" @click="sync">
@@ -296,7 +301,7 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
           <div class="pill-group">
             <span class="pill" :class="leadTones[detail.inquiry.analysis.tier]">{{ results?.priorities[detail.inquiry.analysis.tier] }}</span>
             <span class="pill neutral">{{ dataScopes[detail.inquiry.data_kind as keyof typeof dataScopes] }}</span>
-            <NButton text @click="tab = 'score'">询盘评分 {{ detail.inquiry.score.total }} / 100</NButton>
+            <NButton text @click="tab = 'score'">询盘评分 {{ detail.inquiry.score.total == null ? '待 AI' : detail.inquiry.score.total + ' / 100' }}</NButton>
             <span v-if="detail.inquiry.buyer_score != null">画像分 {{ detail.inquiry.buyer_score }}</span>
           </div>
           <div class="inline-actions">
@@ -351,7 +356,8 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
             </section>
           </NTabPane>
           <NTabPane id="lead-pane-score" role="tabpanel" aria-labelledby="lead-tab-score" name="score" tab="询盘评分" :tab-props="tabAttributes('score')">
-            <ScoreBars :score="detail.inquiry.score" label="询盘评分" />
+            <AgentScoreCard :score="detail.inquiry.score" label="询盘评分" :ready="detail.research_agent.ready" :busy="pending === 'ai-score'"
+              @refresh="action('ai-score', { force: 1 }, 'AI 评分已更新')" />
           </NTabPane>
           <NTabPane id="lead-pane-follow" role="tabpanel" aria-labelledby="lead-tab-follow" name="follow" tab="销售跟进" :tab-props="tabAttributes('follow')">
             <form class="surface" @submit.prevent="action('follow', form)">
@@ -366,6 +372,8 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
             </form>
           </NTabPane>
           <NTabPane id="lead-pane-research" role="tabpanel" aria-labelledby="lead-tab-research" name="research" tab="背调与竞品" :tab-props="tabAttributes('research')">
+            <AgentBackgroundCard :report="detail.agent_background" :ready="detail.research_agent.ready" :busy="pending === 'agent-background'"
+              @refresh="action('agent-background', {}, '公开背调已更新')" />
             <section v-if="detail.inquiry.public_research" class="surface">
               <div class="panel-title"><h3>公开背调</h3><span class="muted">{{ detail.inquiry.public_research.reviewed_on }}</span></div>
               <p v-if="detail.inquiry.public_research.stale" class="notice" role="status">询盘原文已修改，请重新核对这份背调。</p>
@@ -380,13 +388,14 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
               <div class="inline-actions">
                 <NButton size="small" @click="identityOpen">核对企业主体</NButton>
                 <NButton size="small" type="primary" :loading="pending === 'dossier'" @click="action('dossier', {}, '准备卡已生成')">
-                  {{ detail.inquiry.dossier ? '更新准备卡' : '生成会面准备卡' }}
+                  {{ detail.research_agent.ready ? 'AI 分析准备卡' : (detail.inquiry.dossier ? '更新准备卡' : '生成会面准备卡') }}
                 </NButton>
               </div>
               <p v-if="detail.inquiry.identity" class="notice">{{ detail.inquiry.identity.company }} · {{ detail.inquiry.identity.market }}
                 <a :href="safeUrl(detail.inquiry.identity.source)" class="subtle-link" rel="noopener noreferrer" target="_blank">核对来源</a>
               </p>
               <template v-if="detail.inquiry.dossier">
+                <span v-if="detail.inquiry.dossier.engine === 'agent'" class="pill mint">AI 会面分析</span>
                 <p class="notice">{{ detail.inquiry.dossier.goal }}</p>
                 <dl class="detail-grid"><div v-for="(fact,label) in detail.inquiry.dossier.facts" :key="label"><dt>{{ label }}</dt><dd>{{ fact }}</dd></div></dl>
                 <article v-for="sample in detail.inquiry.dossier.samples" :key="sample.name" class="evidence-entry">

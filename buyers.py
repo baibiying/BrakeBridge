@@ -3,9 +3,10 @@ import json
 import re
 from urllib.parse import urlsplit
 
+import agent_scoring
 from buyer_settings import weights as current_weights
 from model_client import ModelUnavailable, ask_json
-from scoring import buyer_score
+from scoring import BUYER_BANDS, buyer_score
 from storage import get_db
 
 REQUIRED = {"company", "source_text"}
@@ -173,14 +174,22 @@ def findings(evidence):
     return result
 
 
-def evaluate(buyer, evidence, weights=None):
+def evaluate(buyer, evidence, weights=None, blend=None):
     result = findings(evidence)
     if buyer["analysis"]:
         for axis, finding in json.loads(buyer["analysis"]).items():
             if result[axis] is None:
                 result[axis] = finding
-    score = buyer_score(result, buyer["contact_email"], weights if weights is not None else current_weights())
-    return buyer["override"] or score["tier"], result, score
+    rules = buyer_score(result, buyer["contact_email"], weights if weights is not None else current_weights())
+    score = agent_scoring.combine(rules, "buyer", buyer["id"], agent_scoring.buyer_context(buyer, evidence), blend)
+    tier = rules["tier"]
+    if tier != "defer" and score["mix"]["state"] in {"combined", "pending"}:
+        qualified = all(result[key] and result[key]["state"] == "supported" for key in ("product", "procurement"))
+        rank_score = score["total"] or 0
+        if not qualified:
+            rank_score = min(69, rank_score)
+        tier = next((label for label, minimum in BUYER_BANDS.items() if rank_score >= minimum), "nurture")
+    return buyer["override"] or tier, result, {**score, "tier": tier}
 
 
 def assess(buyer, evidence):

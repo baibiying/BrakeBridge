@@ -42,19 +42,31 @@ export interface Profile {
   data_kind: string
 }
 export interface Buyer extends Profile, FollowUp { id: number }
-export interface BuyerRow { buyer: Buyer; tier: string; score: number }
+export interface BuyerRow {
+  buyer: Buyer; tier: string; score: number | null; score_state: ScoreMix['state']; ai_scored: boolean
+}
 export interface Score {
   total: number
   raw: number
   note: string
   parts: { label: string; points: number; max: number; evidence: string }[]
 }
+export interface ScoreMix {
+  rule: number; ai: number | null; weights: { rule: number; ai: number }
+  state: 'rule' | 'combined' | 'provisional' | 'pending'; stale: boolean; reason: string; checked_at: string; source: string
+}
+export interface HybridScore extends Omit<Score, 'total'> { total: number | null; mix: ScoreMix }
+export interface AgentBackground {
+  facts: { label: string; text: string; url: string }[]; checked_at: string
+}
 export interface Evidence { id: number; source_text: string; source_type: string; source_ref: string; as_of: string; data_kind: string }
 export interface Finding { id: number; state: string; quote: string; ref: string; date: string }
 export interface BuyerDetail {
   buyer: Buyer
   tier: string
-  score: Score
+  score: HybridScore
+  agent_ready: boolean
+  agent_background: AgentBackground | null
   axes: Record<string, Finding | null>
   evidence: Evidence[]
   related: { id: number; company: string; evidence: Finding; procurement: boolean }[]

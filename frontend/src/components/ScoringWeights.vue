@@ -5,6 +5,7 @@ import { IconAdjustmentsHorizontal, IconDeviceFloppy, IconRestore } from '@table
 import { api, errorText, ui } from '../api'
 import type { ScoringSettings, WeightValues } from '../types'
 import HelpTip from './HelpTip.vue'
+import ScoreBlendSettings from './ScoreBlendSettings.vue'
 
 const props = defineProps<{ scope: 'buyer' | 'inquiry' }>()
 const buyer = props.scope === 'buyer'
@@ -107,6 +108,7 @@ async function save() {
       </div>
     </section>
     <div class="settings-side">
+      <ScoreBlendSettings :scope="scope" />
       <section class="glass settings-panel">
         <div class="panel-title"><h2>评分预览</h2><HelpTip label="评分预览">{{ buyer ? '示例已有产品匹配、采购证据、中国采购和联系邮箱，展会意向待核实。' : '示例询盘已匹配重卡制动件，明确询价，并提供型号和数量。' }}</HelpTip></div>
         <div class="score-number">{{ preview }}<span> / 100</span></div>

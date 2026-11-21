@@ -6,7 +6,9 @@ import click
 from flask import Response, abort, request
 
 import figeon
+import research_agent
 import social
+import social_assets
 import social_verification as verification
 from model_client import available
 from social_providers import ProviderError
@@ -50,8 +52,20 @@ def selected_ids(key):
 def register(app, event_details):
     @app.get("/api/social")
     def social_overview():
-        return {"drafts": social.drafts(), "news": social.news(), "model_ready": available(),
+        agent = research_agent.settings()
+        agent_ready = agent["configured"]
+        return {"drafts": social.drafts(), "news": social.news(), "model_ready": agent_ready or available(),
+                "agent_ready": agent_ready, "web_ready": agent.get("web_ready", agent_ready),
+                "assets": social_assets.catalog(),
                 "news_feeds": bool(app.config["SOCIAL_NEWS_FEEDS"])}
+
+    @app.get("/api/social/assets/<int:asset_id>/image")
+    def asset_image(asset_id):
+        asset = social_assets.get(asset_id)
+        if asset is None:
+            abort(404)
+        return Response(asset["image"], mimetype="image/jpeg",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600"})
 
     @app.post("/api/social/news")
     @handle
@@ -76,7 +90,8 @@ def register(app, event_details):
         data = request.form
         return social.generate_article(data.get("topic", "catalog"), data.get("language", "en"),
                                        data.get("title", ""), data.get("body", ""), selected_ids("news_ids"),
-                                       event_details(app))
+                                       event_details(app), use_images=data.get("use_images") == "1",
+                                       live_news=data.get("live_news") == "1")
 
     @app.get("/api/social/drafts/<int:draft_id>")
     def social_detail(draft_id):
@@ -93,7 +108,8 @@ def register(app, event_details):
         current = social.draft_detail(draft_id) if draft_id is not None else None
         refs = social.sources(selected_ids("news_ids"), current["refs"] if current else ())
         return social.save_draft(draft_id, *(data.get(key, "") for key in ("title", "facebook", "linkedin", "url")), refs,
-                                 social.image_payload(request.files.get("image")), data.get("keep_image") == "1")
+                                 social.image_payload(request.files.get("image")), data.get("keep_image") == "1",
+                                 asset_id=data.get("asset_id", type=int))
 
     @app.get("/api/social/versions/<int:version_id>/image")
     def social_image(version_id):
@@ -141,6 +157,18 @@ def register(app, event_details):
     def figeon_health():
         return figeon.check()
 
+    @app.post("/api/social/figeon/keepalive")
+    @handle
+    def figeon_keepalive():
+        enabled = request.form.get("enabled")
+        if enabled not in {"0", "1"}:
+            raise ValueError("请选择开启或关闭保活。")
+        status = figeon.set_keepalive(enabled == "1")
+        wake = app.extensions.get("figeon_keepalive_wake")
+        if wake is not None:
+            wake.set()
+        return status
+
     @app.post("/api/social/figeon/binding")
     @handle
     def figeon_binding():
@@ -174,7 +202,12 @@ def register(app, event_details):
         return figeon.release(data.get("draft_id", type=int), data.get("request_key", ""), data.get("title", ""),
                               data.get("body", ""), selected_ids("news_ids"), data.getlist("platforms"),
                               data.get("media", ""), data.get("visibility", "unlisted"),
-                              data.get("run_at") or social.utc_stamp())
+                              data.get("run_at") or social.utc_stamp(), asset_id=data.get("asset_id", type=int),
+                              keep_image=data.get("keep_image") == "1")
+
+    @app.get("/api/social/figeon/scheduled")
+    def figeon_scheduled():
+        return {"items": figeon.scheduled(), "platforms": figeon.PLATFORMS}
 
     @app.post("/api/social/figeon/batches/<int:batch_id>/cancel")
     @handle
@@ -212,6 +245,7 @@ def register(app, event_details):
         if not protected_transport():
             return error("请通过 HTTPS 或本机工作台保存帐号。", 403)
         verification.save_login(request.form.get("username", ""), request.form.get("password", ""))
+        verification.discard(current_user()["id"])
         return verification.login_summary()
 
     @app.post("/api/social/verification/start")
@@ -250,3 +284,5 @@ def register(app, event_details):
                 click.echo(f"飞鸽已提交 {figeon_count} 批。")
                 return
             sleep(15)
+
+    figeon.start_keepalive(app)

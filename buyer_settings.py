@@ -17,7 +17,7 @@ def validate(values, defaults=BUYER_DEFAULTS):
     if (not isinstance(values, dict) or values.keys() != defaults.keys()
             or any(type(value) is not int or not 0 <= value <= 100 for value in values.values())
             or sum(values.values()) != 100):
-        raise ValueError("五项权重须为 0 至 100 的整数，合计 100%。")
+        raise ValueError("权重须为 0 至 100 的整数，合计 100%。")
     return values
 
 

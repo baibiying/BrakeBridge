@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 from flask import current_app
 
+import agent_scoring
 import buyer_settings
 import buyers
 import inquiries
@@ -435,7 +436,19 @@ SCORE_SIGNALS = """
 """
 
 
-def lead_view(row, scores, weights=None):
+def score_context(row, reply):
+    fields = payload(row["fields"], {})
+    identity = payload(row["identity"], {})
+    return agent_scoring.inquiry_context(
+        reply if reply is not None else current_reply(fields.get("content", "")), fields, identity)
+
+
+def lead_score_context(row):
+    reply = get_db().execute(f"SELECT {SCORE_SIGNALS} FROM lead_inquiries i WHERE i.id=?", (row["id"],)).fetchone()
+    return score_context(row, reply["score_reply"])
+
+
+def lead_view(row, scores, weights=None, blend=None):
     info = {**dict(row), "fields": payload(row["fields"], {}), "analysis": payload(row["analysis"], {}),
             "dossier": payload(row["dossier"], None), "identity": payload(row["identity"], None),
             "public_research": payload(row["public_research"], None)}
@@ -445,8 +458,9 @@ def lead_view(row, scores, weights=None):
                                           (row["id"],)).fetchone()))
     reply = info.pop("score_reply")
     text = reply if reply is not None else current_reply(info["fields"]["content"])
-    info["score"] = score_inquiry(text, info["analysis"], bool(info["identity"] or info["fields"].get("company")),
-                                  weights if weights is not None else inquiry_weights())
+    rules = score_inquiry(text, info["analysis"], bool(info["identity"] or info["fields"].get("company")),
+                          weights if weights is not None else inquiry_weights())
+    info["score"] = agent_scoring.combine(rules, "inquiry", row["id"], score_context(row, reply), blend)
     if info["public_research"] and info["public_research"].get("source_hash"):
         info["public_research"]["stale"] = info["public_research"]["source_hash"] != hashlib.sha256(
             info["fields"]["content"].encode()).hexdigest()
@@ -456,10 +470,11 @@ def lead_view(row, scores, weights=None):
 def buyer_scores():
     db = get_db()
     weights = buyer_settings.weights()
+    blend = agent_scoring.weights("buyer")
     scores = {}
     for buyer in db.execute("SELECT * FROM buyers WHERE id IN (SELECT buyer_id FROM lead_inquiries WHERE buyer_id IS NOT NULL)"):
         evidence = db.execute("SELECT * FROM evidence WHERE buyer_id=?", (buyer["id"],)).fetchall()
-        _, _, score = buyers.evaluate(buyer, evidence, weights)
+        _, _, score = buyers.evaluate(buyer, evidence, weights, blend)
         scores[buyer["id"]] = score["total"]
     return scores
 
@@ -467,18 +482,24 @@ def buyer_scores():
 def listing(deleted=False, sort=None):
     scores = buyer_scores()
     weights = inquiry_weights()
-    rows = [lead_view(row, scores, weights) for row in get_db().execute(f"""
+    blend = agent_scoring.weights("inquiry")
+    rows = [lead_view(row, scores, weights, blend) for row in get_db().execute(f"""
         SELECT i.*, {SCORE_SIGNALS} FROM lead_inquiries i WHERE (deleted_at<>'')=?
         AND (data_kind='authorized' OR ?) ORDER BY received_at DESC,id DESC
     """, (deleted, current_app.config["LEADS_ALLOW_SYNTHETIC"]))]
     if sort in {"score_desc", "score_asc"}:
-        return sorted(rows, key=lambda row: row["score"]["total"], reverse=sort == "score_desc")
+        def numeric(row):
+            total = row["score"]["total"]
+            return total is None, (-1 if sort == "score_desc" else 1) * (total or 0)
+
+        return sorted(rows, key=numeric)
     order = list(PRIORITIES)
     if sort is not None:
         return sorted(rows, key=lambda row: (
             order.index(row["analysis"]["tier"]),
             row["analysis"]["tier"] == "review" and not row["candidate_count"],
-            -row["score"]["total"],
+            row["score"]["total"] is None,
+            -(row["score"]["total"] or 0),
             -(row["buyer_score"] or 0),
         ))
     return sorted(rows, key=lambda row: (order.index(row["analysis"]["tier"]),

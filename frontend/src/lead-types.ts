@@ -1,14 +1,14 @@
-import type { Labels, Score } from './types'
+import type { AgentBackground, HybridScore, Labels, ScoreMix } from './types'
 
 export interface LeadAnalysis { tier: string; reason: string; next_action: string; quote: string; show: string; meeting_at: string }
 export interface LeadBrief {
   id: number; company: string; title: string; origin: string; country: string; source: string; external_id: string
   data_kind: string; owner: string; status: string; received_at: string; analysis: LeadAnalysis
   meeting_at: string; next_action: string; buyer_score: number | null; deleted_at: string
-  score: number; candidate_count: number
+  score: number | null; score_state: ScoreMix['state']; ai_scored: boolean; candidate_count: number
 }
 export interface LeadList {
-  items: LeadBrief[]; priorities: Labels; states: Labels; relationships: Labels; fields: Labels; export_fields: Labels
+  items: LeadBrief[]; priorities: Labels; states: Labels; relationships: Labels; fields: Labels; export_fields: Labels; agent_ready: boolean
 }
 export interface ExpoList {
   date: string; priorities: Labels; groups: Record<'meetings' | 'show' | 'follow', LeadBrief[]>
@@ -21,6 +21,7 @@ export interface RivalProfile extends PublicIdentity {
 export interface Rival { id: number; candidate: RivalProfile; verification: string; checked_at: string; follow_up: string; draft: string }
 export interface Dossier {
   company: string; goal: string; facts: Labels; evidence: { label: string; quote: string; source: string }[]
+  engine: 'rule' | 'agent'
   samples: { name: string; width: string; source: string }[]; questions: string[]
 }
 export interface LeadTranslation { text: string; engine: string }
@@ -28,10 +29,10 @@ export interface PublicResearch {
   declared_company: string; summary: string; facts: Labels; next_steps: string[]
   reviewed_on: string; stale?: boolean
 }
-export interface LeadRecord extends Omit<LeadBrief, 'company' | 'title' | 'origin' | 'country' | 'score'> {
+export interface LeadRecord extends Omit<LeadBrief, 'company' | 'title' | 'origin' | 'country' | 'score' | 'score_state' | 'ai_scored'> {
   buyer_id: number | null; fields: Record<string, string | Labels | { name: string; url: string }[]>
   dossier: Dossier | null; identity: PublicIdentity | null; public_research: PublicResearch | null
-  score: Score
+  score: HybridScore
 }
 export interface LeadDetail {
   inquiry: LeadRecord; buyers: { id: number; company: string }[]
@@ -39,6 +40,7 @@ export interface LeadDetail {
   messages: { id: number; subject: string; received_at: string; body: string; reply_text: string; attachments: string[]; analysis: LeadAnalysis }[]
   candidates: Rival[]
   research_agent: { ready: boolean; automatic: boolean; checked_at: string; summary: string }
+  agent_background: AgentBackground | null
   translations: Record<string, LeadTranslation>
   translation_sources: Record<string, string>
 }

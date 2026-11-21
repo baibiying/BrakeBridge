@@ -7,6 +7,7 @@ import click
 from flask import abort, current_app, request
 from werkzeug.datastructures import FileStorage
 
+import agent_scoring
 import buyer_settings
 import lead_connectors as connectors
 import lead_inquiries as leads
@@ -15,6 +16,7 @@ import lead_research as research
 import lead_translations as translations
 import local_translation
 import research_agent
+import sales_agent
 import workspace
 from model_client import ModelUnavailable, available as model_available
 from storage import get_db
@@ -37,6 +39,8 @@ def brief(row):
                                       "received_at", "analysis", "meeting_at", "next_action", "buyer_score", "deleted_at",
                                       "candidate_count")} | {
         "score": row["score"]["total"],
+        "score_state": row["score"]["mix"]["state"],
+        "ai_scored": row["score"]["mix"]["ai"] is not None,
         "company": (row["identity"] or {}).get("company") or fields.get("company") or (f"{declared}（自述）" if declared else "") or fields.get("name") or "企业待核",
         "title": fields.get("title") or "",
         "origin": fields.get("source") or "",
@@ -79,6 +83,26 @@ def register(app, event_for):
         except ValueError as error:
             return workspace.error(str(error))
 
+    @app.post("/api/settings/competitor-agent/<operation>")
+    def agent_provider_check(operation):
+        if operation not in {"models", "test"}:
+            abort(404)
+        try:
+            return research_agent.inspect_provider(request.get_json(silent=True), list_only=operation == "models")
+        except (ValueError, research_agent.ResearchUnavailable) as error:
+            return workspace.error(str(error))
+
+    @app.route("/api/settings/score-blend/<scope>", methods=["GET", "POST"])
+    def score_blend_settings(scope):
+        if scope not in agent_scoring.SCOPES:
+            abort(404)
+        if request.method == "POST":
+            try:
+                agent_scoring.save_weights(scope, request.get_json(silent=True))
+            except ValueError as error:
+                return workspace.error(str(error))
+        return {"weights": agent_scoring.weights(scope), "defaults": agent_scoring.DEFAULTS}
+
     @app.get("/api/lead-inquiries")
     def lead_list():
         rows = leads.listing(deleted=request.args.get("deleted") == "1", sort=request.args.get("sort", "priority"))
@@ -91,6 +115,7 @@ def register(app, event_for):
                    and (not q or any(q in row["fields"].get(key, "").casefold() for key in search)
                         or q in brief(row)["company"].casefold())]
         return {"items": [brief(row) for row in visible], "priorities": leads.PRIORITIES, "states": leads.LEAD_STATES,
+                "agent_ready": research_agent.settings()["configured"],
                 "relationships": research.CANDIDATE_LABELS, "fields": leads.FIELDS, "export_fields": records.EXPORT_FIELDS}
 
     @app.get("/api/lead-inquiries/expo")
@@ -148,9 +173,8 @@ def register(app, event_for):
     def lead_detail(inquiry_id):
         row = record(inquiry_id)
         info = leads.lead_view(row, leads.buyer_scores())
-        dossier = info["dossier"]
-        if (dossier and dossier.get("version") != 2) or (not dossier and info["public_research"]):
-            info["dossier"] = research.build_dossier(row)
+        if info["dossier"] or info["public_research"]:
+            info["dossier"] = sales_agent.meeting_card(row)
         messages = [{**dict(item), "attachments": json.loads(item["attachments"]), "analysis": json.loads(item["analysis"])}
                     for item in get_db().execute("""SELECT * FROM lead_messages WHERE inquiry_id=?
                                                    ORDER BY received_at DESC,id DESC""", (inquiry_id,))]
@@ -161,6 +185,7 @@ def register(app, event_for):
         return {"inquiry": info, "messages": messages, "candidates": research.candidates(inquiry_id), "buyers": companies,
                 "export_values": records.export_values(info["fields"]),
                 "research_agent": research_agent.status(row),
+                "agent_background": sales_agent.background_data("inquiry", row),
                 "translations": translations.saved(row, messages), "translation_sources": sources}
 
     @app.post("/api/lead-inquiries")
@@ -233,7 +258,24 @@ def register(app, event_for):
 
     @app.post("/api/lead-inquiries/<int:inquiry_id>/dossier")
     def lead_dossier(inquiry_id):
-        return research.prepare_dossier(record(inquiry_id))
+        try:
+            return sales_agent.prepare_meeting(record(inquiry_id))
+        except (ValueError, research_agent.ResearchUnavailable) as error:
+            return workspace.error(str(error))
+
+    @app.post("/api/lead-inquiries/<int:inquiry_id>/ai-score")
+    def lead_ai_score(inquiry_id):
+        try:
+            return sales_agent.score("inquiry", record(inquiry_id), force=request.form.get("force") == "1")
+        except (ValueError, research_agent.ResearchUnavailable) as error:
+            return workspace.error(str(error))
+
+    @app.post("/api/lead-inquiries/<int:inquiry_id>/agent-background")
+    def lead_agent_background(inquiry_id):
+        try:
+            return sales_agent.collect_background("inquiry", record(inquiry_id))
+        except (ValueError, research_agent.ResearchUnavailable) as error:
+            return workspace.error(str(error))
 
     @app.post("/api/lead-inquiries/<int:inquiry_id>/identity")
     def lead_company_identity(inquiry_id):
