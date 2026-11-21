@@ -1,0 +1,16 @@
+# 产品册 PDF 体积大（合计约 100MB），不进仓库，本地保留
+*.pdf
+*.zip
+
+# 本机工具目录
+.kimi-code/
+*.tmpdir
+
+# 运行时产物
+data/query_log.jsonl
+__pycache__/
+.venv/
+~$*
+
+# 海报设计源文件（放网盘，仓库只留最终 PDF）
+poster_src/

@@ -1,0 +1,157 @@
+records=153  kooying=55  guanlong=98
+with_size=145  name_only=8
+size_only=3
+
+kooying   p27 c1  沃胜桥11.5TA                  | 165×200×12.5/16.8    | 
+kooying   p27 c1  杰狮C6前A(ABS)                | 191×160×14/17        | 
+kooying   p27 c1  杰狮C6前B                     | 230×160×8.8/17       | 
+kooying   p27 c1  三一搅拌车前                     | 201×160×15.5         | 
+kooying   p27 c1  三一搅拌车后                     | 211×220×15.5         | 
+kooying   p27 c1  东风天锦KR前A（ABS）              | 188×155×12.2/14      | 
+kooying   p27 c1  德龙X5000                    | 206×220×12.5/16.8    | 
+kooying   p27 c1  霸铃80宽A                     | 142×80×14.4/15.5     | 
+kooying   p27 c2  沃胜桥11.5TB                  | 214×200×11/16.8      | 
+kooying   p27 c2  东风天锦KR前B                   | 205×155×8.2/14.2     | 
+kooying   p27 c2  新98R前(ABS)                 | 205×178×15.5         | 
+kooying   p27 c2  霸铃80宽B                     | 146×80×10.5/15       | 
+kooying   p27 c3  小J6 80宽                    | 149×80×11            | 
+kooying   p27 c3  解放虎威A(ABS)                 | 150×100×14/15.5      | 
+kooying   p27 c3  小虎威A(ABS)                  | 150×100×15/16.5      | 
+kooying   p27 c3  一汽红塔前(ABS)                 | 151×80×12.5          | 
+kooying   p27 c3  小解放5649(ABS)               | 142×80×12            | 
+kooying   p27 c3  红塔100宽                     | 150×100×10.5/13.5    | 
+kooying   p27 c4  宇通校车后（ABS）                 | 150×150×9.5/13.5     | 
+kooying   p27 c4  解放虎威B                      | 148×100×10/15        | 
+kooying   p27 c4  小虎威B                       | 151×100×10/16        | 
+kooying   p27 c4  6700前                      | 151×85×14.5          | 
+kooying   p27 c4  福田80 宽                     | 148×80×11            | 
+kooying   p27 c4  龙岩8050                     | 150×130×12           | 
+kooying   p28 c1  解放虎威130宽A(ABS)             | 150×130×14/15.5      | 
+kooying   p28 c1  新斯太尔后A(ABS)                | 201×185×14.5         | 
+kooying   p28 c1  HQ8555后                    | 154×130×13           | 
+kooying   p28 c1  德龙LM180（ABS）               | 201×180×13/16.5      | 
+kooying   p28 c1  少林客车（ABS)                  | 151×80×13.5          | 
+kooying   p28 c1  汉德桥35T前                    | 240×220×18.5         | 
+kooying   p28 c2  解放虎威130宽B                  | 148×130×10/15        | 
+kooying   p28 c2  新斯太尔后B                     | 201×185×14.5         | 
+kooying   p28 c2  江淮骏铃160宽                   | 151×160×14           | 
+kooying   p28 c2  东风多利卡前（ABS）                | 149×80×13            | 
+kooying   p28 c2  乘龙L3后                      | 208×180×14.5         | 
+kooying   p28 c2  汉德桥35T后                    | 240×240×18.5         | 
+kooying   p28 c3  解放红塔后A(ABS)                | 145×100×12/13.5      | 
+kooying   p28 c3  GY8055                     | 170×130×13           | 
+kooying   p28 c3  GY8055                     | 170×130×13           | 
+kooying   p28 c3  福田小金刚（ABS）                 | 134×100×12           | 
+kooying   p28 c3  解放虎威前A（ABS）                | 147×100×14.5/16.5    | 
+kooying   p28 c3  五征                         | 143×120×13.5         | 
+kooying   p28 c3                             | 150×120×14.5         | 
+kooying   p28 c3  东风天锦后（ABS)                 | 192×180×13.9/17.4    | 
+kooying   p28 c4  解放红塔后B                     | 145×100×9/13.4       | 
+kooying   p28 c4  GY1054                     | 149×160×13           | 
+kooying   p28 c4  德龙K5000后（ABS）              | 154×100×10.5/13.5    | 
+kooying   p28 c4  解放虎威前B                     | 146×100×11/16        | 
+kooying   p28 c4  三T王前改型（ABS）                |                      | 
+kooying   p29 c1  新江铃前A（ABS）                 | 149×100×13.5/15      | 
+kooying   p29 c1  福田欧马可A（ABS）                | 146×100×14/15.2      | 
+kooying   p29 c1  东风多利卡后A（ABS）               | 146×80×14.8/16.5     | 
+kooying   p29 c2  新江铃前B                      | 149×100×9.5/14.5     | 
+kooying   p29 c2  福田欧马可B                     | 148×100×9.5/14.5     | 
+kooying   p29 c2  东风多利卡后B                    | 147×80×10.8/15.8     | 
+guanlong  p17 c3  JH6后A                      | 177×197×15.5/18.5    | 
+guanlong  p17 c3  JH6后B                      | 221×197×10/19        | 
+guanlong  p17 c3  Q54                        | 152×100×12.5         | 
+guanlong  p17 c3  德⻰曼前                       | 195×180×12.5/16      | 
+guanlong  p17 c3  加宽A                        | 235×180×9/16         | 
+guanlong  p17 c3  德⻰曼前                       | 218×180×12.3/15.5    | 
+guanlong  p17 c3  加宽B                        | 218×180×9.8/15.5     | 
+guanlong  p17 c3  东⻛天锦A                      | 205×150×12.7/15      | 
+guanlong  p17 c3  东⻛天锦B                      | 208×150×10/15        | 
+guanlong  p17 c3  东⻛天⻰前A                     | 206×160×16/18.5      | 
+guanlong  p17 c3  东⻛天⻰前B                     | 213×160×11.5/18.2    | 
+guanlong  p17 c3  汉威160A                     | 200×160×11.5/14.5    | 
+guanlong  p17 c3  汉威160B                     |                      | 
+guanlong  p17 c3  红岩杰狮前                      |                      | 
+guanlong  p17 c4  江淮格尔后B                     | 195×220×10/18.5      | 
+guanlong  p17 c4  江铃前                        | 148×100×12.5         | 
+guanlong  p17 c4  解放J5前A                     | 168×135×13/18.5      | 
+guanlong  p17 c4  解放J5前B                     | 206×135×11/18.5      | 
+guanlong  p17 c4  联合重卡前A                     | 209×178×19.5/16      | 
+guanlong  p17 c4  联合440桥                     | 206×178×19/12.5      | 
+guanlong  p17 c4  联合重卡前B                     | 145×130×12           | 
+guanlong  p17 c4  美的客⻋后                      | 207×180×14.5         | 
+guanlong  p17 c4  沈阳⽇野                       | 205×160×14.5         | 
+guanlong  p17 c4  索⻢桥后                       | 203×130×11/14.5      | 
+guanlong  p17 c4  新K前                        | 189×222×15/17        | 
+guanlong  p17 c4  新欧曼400A                    | 234×222×9/17         | 
+guanlong  p17 c4  新欧曼400B                    |                      | 
+guanlong  p18 c1  新T850前                     | 208×140×16           | 
+guanlong  p18 c1  140宽                    | 195×160×13.5/16      | 
+guanlong  p18 c1  重汽汕德卡前                     | 200×180×13/16        | 
+guanlong  p18 c1  重庆铁⻢                       | 208×200×14.2         | 
+guanlong  p18 c1  天⻰KL后                      | 192×150×13.7/16.3    | 
+guanlong  p18 c1  欧曼CX490                    | 227×150×7.3/16       | 
+guanlong  p18 c1  前A                  | 150×200×12.5/16      | 
+guanlong  p18 c1  欧曼CX490                    | 165×200×12.5/16.8    | 
+guanlong  p18 c1  前B                  | 214×200×11/16.8      | 
+guanlong  p18 c1  沃胜桥3020                    | 190×220×12/16        | 
+guanlong  p18 c1  沃胜桥11.5TA                  | 208×140×16           | 
+guanlong  p18 c1  沃胜桥11.5TB                  | 153×160×12.5         | 
+guanlong  p18 c1  豪沃TX350                    |                      | 
+guanlong  p18 c1  ⻘岛3T                       |                      | 
+guanlong  p18 c1  80G1改型                     |                      | 
+guanlong  p18 c2  德⻰LM160                    | 150×160×12.5         | 
+guanlong  p18 c2  新款杰狮前A                     | 205×163×12.8/16.5    | 
+guanlong  p18 c2  新款杰狮前B                     | 191×150×13.5/17      | 
+guanlong  p18 c2  新天锦130A                    | 229×150×8.5/16.4     | 
+guanlong  p18 c2  新天锦130B                    | 189×130×12.5/14.5    | 
+guanlong  p18 c2  重汽⼩豪沃                      | 197×130×8.5/13.8     | 
+guanlong  p18 c2  ⼩解放后                      | 156×160×12.5         | 
+guanlong  p18 c2  杰狮C6前A                     | 155×160×13.5         | 
+guanlong  p18 c2                             | 191×160×14/17        | 
+guanlong  p18 c2  杰狮C6前B                     | 208×140×16           | 
+guanlong  p18 c2  三⼀搅拌⻋前                     | 201×160×15.5         | 
+guanlong  p18 c2  三⼀搅拌⻋                      | 211×220×15.5         | 
+guanlong  p18 c3  东⻛天锦KR                     | 188×155×12.2/14      | 
+guanlong  p18 c3  前A                 | 205×155×8.2/14.2     | 
+guanlong  p18 c3  东⻛天锦KR                     | 206×220×12.5/16.8    | 
+guanlong  p18 c3  前B                 | 207×180×15.5         | 
+guanlong  p18 c3  新98R前                      | 149×80×11            | 
+guanlong  p18 c3  ⼩J680宽                    | 142×80×14.4/15.5     | 
+guanlong  p18 c3  霸铃80宽A                     | 146×80×10.5/15       | 
+guanlong  p18 c3  霸铃80宽B                     | 150×150×9.5/13.5     | 
+guanlong  p18 c3  宇通校⻋后                      | 153×120×14.5         | 
+guanlong  p18 c3  Q54后                       | 158×120×14.5         | 
+guanlong  p18 c3  湖桥54Q                      | 150×100×14/15.5      | 
+guanlong  p18 c3  解放⻁威A                      | 148×100×10/15        | 
+guanlong  p18 c3  解放⻁威B                      |                      | 
+guanlong  p18 c4  ⼩解放5649                    | 142×80×12            | 
+guanlong  p18 c4  红塔100                      | 150×100×10.5/13.5    | 
+guanlong  p18 c4  ⼀汽红塔前                      | 151×80×12.5          | 
+guanlong  p18 c4  6700前                      | 151×80×14.5          | 
+guanlong  p18 c4  ⼩⻁威A                       | 150×100×15/16.5      | 
+guanlong  p18 c4  ⼩⻁威B                       | 151×100×10/16        | 
+guanlong  p18 c4  福⽥80                       | 148×80×11            | 
+guanlong  p18 c4  解放⻁威                       | 150×130×14/15.5      | 
+guanlong  p18 c4  解放⻁威                       | 148×130×10/15        | 
+guanlong  p18 c4  Hq8555后                    | 154×130×13           | 
+guanlong  p18 c4  160宽                     | 151×160×14           | 
+guanlong  p18 c4                             | 201×180×13/16.5      | 
+guanlong  p19 c3  东⻛多利卡前                     | 149×80×13            | 
+guanlong  p19 c3  ⻰岩8050                     | 150×130×12           | 
+guanlong  p19 c3  乘⻰L3后                      | 208×180×14.5         | 
+guanlong  p19 c3  新斯太尔后A                     | 201×185×14.5         | 
+guanlong  p19 c3  新斯太尔后B                     | 201×185×14.5         | 
+guanlong  p19 c3  汉德桥35T前                    | 240×220×18.5         | 
+guanlong  p19 c3  汉德桥35T后                    | 240×240×18.5         | 
+guanlong  p19 c3  少林客⻋                       | 151×80×13.5          | 
+guanlong  p19 c3  GY8055                    | 170×130×13           | 
+guanlong  p19 c3  解放红塔后A                     | 145×100×12/13.5      | 
+guanlong  p19 c3  解放红塔后B                     | 145×100×9/13.4       | 
+guanlong  p19 c3  解放J6前                      | 210×150×14.5         | 
+guanlong  p19 c4  GY1054                    | 149×160×13           | 
+guanlong  p19 c4  乘⻰H5前A                     | 145×160×14.5         | 
+guanlong  p19 c4  乘⻰H5前B                     | 196×160×14.5         | 
+guanlong  p19 c4  解放⻁威前A                     | 147×100×14.5/16.5    | 
+guanlong  p19 c4  解放⻁威前B                     | 146×100×11/16        | 
+guanlong  p19 c4  德⻰K5000后                   | 154×100×10.5/13.5    | 
+guanlong  p19 c4  福⽥⼩⾦刚                      | 134×100×12           | 
