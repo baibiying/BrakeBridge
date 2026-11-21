@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="{{ url_for('static', filename='fitment.css') }}?v=pricebox2" />
+{% endblock %}
+
+{% block content %}
+{% set step_key = wizard.key if wizard else None %}
+{% set labels = wizard.answered|map(attribute=0)|list if wizard.answered else [] %}
+{% set on_code = step_key == 'code' %}
+{% set on_axle = step_key in ['axle', 'position', 'length'] %}
+{% set on_vehicle = step_key == 'q' or wizard.done or wizard.phase == 'pick' or wizard.phase == 'qty' %}
+{% set done_code = '编码' in labels %}
+{% set done_axle = '车桥' in labels %}
+{% set show_result = result and not result.miss and (wizard.done or wizard.show_candidates) and not draft and not need_qty %}
+{% set is_unique = result and result.assert_unique and result.candidates|length == 1 %}
+
+<section class="fitment fitment-page {% if wizard.phase == 'ask' %}is-asking{% elif show_result or draft or need_qty %}is-result{% endif %} {% if mode == 'mobile' %}fitment-mobile{% endif %}">
+  {% if source_label %}
+  <p class="source-banner">{{ source_label }}</p>
+  {% endif %}
+
+  <div class="fit-topbar">
+    <div class="brand-lockup">
+      <h1 class="brand-name">BrakeBridge</h1>
+      <span class="brand-tag">速配</span>
+    </div>
+    <div class="fit-rail" aria-hidden="true">
+      <span class="{% if on_code %}on{% elif done_code %}done{% endif %}"><i>1</i>编码</span>
+      <span class="{% if on_axle %}on{% elif done_axle %}done{% endif %}"><i>2</i>车桥</span>
+      <span class="{% if on_vehicle %}on{% elif wizard.done %}done{% endif %}"><i>3</i>车型/定片</span>
+    </div>
+  </div>
+
+  <ul class="answered-chips">
+    {% for label, val in wizard.answered %}
+    <li><em>{{ label }}</em>{{ val }}</li>
+    {% endfor %}
+    <li class="reset"><a href="/fitment{% if mode == 'mobile' %}?mode=mobile{% endif %}">从第一问重新开始</a></li>
+  </ul>
+
+  {% if wizard.phase == 'ask' %}
+  <form class="fitment-form wizard-card wizard-stage" method="get" action="/fitment" id="fitment-form">
+    {% if mode == 'mobile' %}<input type="hidden" name="mode" value="mobile" />{% endif %}
+    {% if request.args.get('from') %}<input type="hidden" name="from" value="{{ request.args.get('from') }}" />{% endif %}
+    {% if q and wizard.name != 'q' %}<input type="hidden" name="q" value="{{ q }}" />{% endif %}
+    {% if axle and wizard.name != 'axle' %}<input type="hidden" name="axle" value="{{ axle }}" />{% endif %}
+    {% if code and wizard.name != 'code' %}<input type="hidden" name="code" value="{{ code }}" />{% endif %}
+    {% if position and wizard.name != 'position' %}<input type="hidden" name="position" value="{{ position }}" />{% endif %}
+    {% if length != '' and wizard.name != 'length' %}<input type="hidden" name="length" value="{{ length }}" />{% endif %}
+    {% if width != '' %}<input type="hidden" name="width" value="{{ width }}" />{% endif %}
+    {% if year %}<input type="hidden" name="year" value="{{ year }}" />{% endif %}
+    {% if brake_type %}<input type="hidden" name="brake_type" value="{{ brake_type }}" />{% endif %}
+    {% if tonnage %}<input type="hidden" name="tonnage" value="{{ tonnage }}" />{% endif %}
+    {% if skip_code %}<input type="hidden" name="skip_code" value="1" />{% endif %}
+    {% if skip_axle %}<input type="hidden" name="skip_axle" value="1" />{% endif %}
+
+    <div class="ask-focus">
+      <p class="ask-path">
+        {% if on_code %}这一答决定下一问{% elif on_axle %}车桥能定片就停，不能就改问车型{% else %}只问这一题{% endif %}
+      </p>
+      <h2 class="wizard-title">{{ wizard.title }}</h2>
+      <p class="wizard-hint">{{ wizard.hint }}</p>
+
+      {% if wizard.input == 'choice' and wizard.choices %}
+      <div class="choice-grid ask-choices">
+        {% for ch in wizard.choices %}
+        <a class="choice-btn" href="/fitment?{{ qs(ch.params) }}">{{ ch.label }}</a>
+        {% endfor %}
+      </div>
+      {% else %}
+        {% if wizard.choices %}
+        <div class="choice-grid ask-choices">
+          {% for ch in wizard.choices %}
+          <a class="choice-btn" href="/fitment?{{ qs(ch.params) }}">{{ ch.label }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <label class="field wizard-field">
+          <span>你的回答</span>
+          <input type="text" name="{{ wizard.name }}" value="" placeholder="{{ wizard.placeholder or '' }}" autofocus autocomplete="off" required
+                 oninvalid="this.setCustomValidity('请先填写内容再点继续')"
+                 oninput="this.setCustomValidity('')" />
+        </label>
+      {% endif %}
+
+      {% if wizard.demos %}
+      <div class="ask-examples">
+        <span>或点一个例子</span>
+        {% for d in wizard.demos %}
+        <a href="/fitment?{{ qs(d.params) }}">{{ d.label }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if result and not result.miss and wizard.show_preview %}
+      <p class="preview-note">目前约 {{ result.candidates|length }} 条可能适配，答完本题后会再收窄。</p>
+      {% endif %}
+
+      <div class="wizard-actions">
+        {% if wizard.back %}
+        <a class="btn-back" href="{% if wizard.back.href %}{{ wizard.back.href }}{% else %}/fitment?{{ qs_only(wizard.back.params)|safe }}{% endif %}">{{ wizard.back.label }}</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+        <div class="wizard-actions-main">
+          {% if wizard.skip %}
+          <a class="btn-skip" href="/fitment?{{ qs(wizard.skip.params)|safe }}">{{ wizard.skip.label }}</a>
+          {% endif %}
+          {% if wizard.input != 'choice' %}
+          <button type="submit" class="btn-primary">继续 <kbd>Enter</kbd></button>
+          {% endif %}
+        </div>
+      </div>
+
+      <p class="ask-next">
+        {% if on_code %}有编码，下一屏就是这一片。点「不知道」，下一问改问车桥。
+        {% elif step_key == 'axle' %}报出车桥就能定片。点「不知道」，下一问改问车型。
+        {% elif step_key == 'q' %}下一屏列出这个车型可能的片子，由你勾选，不会直接断言。
+        {% elif step_key == 'position' %}选前桥或后桥后，就定成一片。
+        {% else %}答完这一问，才会决定还要不要再问。{% endif %}
+      </p>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if wizard.phase == 'miss' %}
+  <div class="miss-panel">
+    {% if wizard.back %}
+    <p class="miss-back">
+      <a class="btn-back" href="{% if wizard.back.href %}{{ wizard.back.href }}{% else %}/fitment?{{ qs_only(wizard.back.params)|safe }}{% endif %}">{{ wizard.back.label }}</a>
+    </p>
+    {% endif %}
+    <p class="miss-title">{{ wizard.title or '未收录' }}</p>
+    <p class="miss-sub">{{ wizard.hint }}{% if result and result.nearest %}。最相近名称仅作提示，不含尺寸。{% endif %}</p>
+    {% if wizard.nearest %}
+    <ul class="nearest-list">
+      {% for n in wizard.nearest %}
+      <li><a href="/fitment?{{ qs({'q': n, 'axle': '', 'code': ''}) }}">{{ n }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <a class="btn-primary" href="/fitment{% if mode == 'mobile' %}?mode=mobile{% endif %}">从第一问重新开始</a>
+  </div>
+  {% endif %}
+
+  {% if draft or need_qty %}
+  <section class="quote-sheet" id="quote-workspace">
+    <div class="spec-sheet quote-slim">
+        <header class="spec-head hit-identity">
+          <p class="q-kicker">填写报价</p>
+          <h2 class="q-part">{{ picked_card.master_id }}</h2>
+        </header>
+
+        <div class="price-banner" style="background:#0b6b58 !important;color:#fff !important;border:2px solid #7dffe0;border-radius:22px;padding:1.5rem 1.4rem 1.65rem;text-align:center;">
+          <span style="display:block;color:#d9fff4 !important;-webkit-text-fill-color:#d9fff4;font-size:1.85rem;font-weight:800;letter-spacing:0.06em;">价区 · 示意</span>
+          <b style="display:block;margin-top:0.25rem;color:#fff !important;-webkit-text-fill-color:#fff;font-size:clamp(3.4rem, 6vw, 5.2rem);font-weight:800;line-height:1.05;">{% if price_range != '—' %}USD {{ price_range }}{% else %}待核价{% endif %}</b>
+        </div>
+
+        <form class="price-form" method="get" action="/fitment#quote-workspace">
+          {% if mode == 'mobile' %}<input type="hidden" name="mode" value="mobile" />{% endif %}
+          {% if request.args.get('from') %}<input type="hidden" name="from" value="{{ request.args.get('from') }}" />{% endif %}
+          {% if q %}<input type="hidden" name="q" value="{{ q }}" />{% endif %}
+          {% if axle %}<input type="hidden" name="axle" value="{{ axle }}" />{% endif %}
+          {% if code %}<input type="hidden" name="code" value="{{ code }}" />{% endif %}
+          {% if position %}<input type="hidden" name="position" value="{{ position }}" />{% endif %}
+          {% if length != '' %}<input type="hidden" name="length" value="{{ length }}" />{% endif %}
+          {% if width != '' %}<input type="hidden" name="width" value="{{ width }}" />{% endif %}
+          {% if year %}<input type="hidden" name="year" value="{{ year }}" />{% endif %}
+          {% if brake_type %}<input type="hidden" name="brake_type" value="{{ brake_type }}" />{% endif %}
+          {% if tonnage %}<input type="hidden" name="tonnage" value="{{ tonnage }}" />{% endif %}
+          {% if skip_code %}<input type="hidden" name="skip_code" value="1" />{% endif %}
+          {% if skip_axle %}<input type="hidden" name="skip_axle" value="1" />{% endif %}
+          <input type="hidden" name="pick" value="{{ selected_id }}" />
+          <div class="q-stats">
+            <label class="qty-field">
+              <span>数量（套）</span>
+              <input type="number" name="qty" min="1" step="1" inputmode="numeric" placeholder="217" value="{{ qty }}" required
+                     oninvalid="this.setCustomValidity('请填写正整数数量')"
+                     oninput="this.setCustomValidity(''); fitmentUnitRange(this.form.unit)" />
+            </label>
+            <label>
+              <span>单价 USD{% if price_min %} · {{ price_min }}–{{ price_max }}{% endif %}</span>
+              <input type="number" name="unit" step="0.01" inputmode="decimal" placeholder="{% if price_min %}{{ price_min }}–{{ price_max }}{% else %}填写{% endif %}" value="{% if unit_error %}{{ unit_rejected }}{% else %}{{ draft.unit_price if draft else '' }}{% endif %}"
+                     {% if price_min %}min="{{ price_min }}" max="{{ price_max }}"{% else %}min="0"{% endif %}
+                     {% if unit_error %}class="is-out"{% endif %}
+                     oninput="fitmentUnitRange(this)" />
+              <em class="unit-error" {% if not unit_error %}hidden{% endif %}>{{ unit_error }}</em>
+            </label>
+            <label>
+              <span>总价 USD</span>
+              <input type="number" name="total" min="0" step="0.01" inputmode="decimal" placeholder="自动" value="{{ '' if unit_error else (draft.total_price if draft else '') }}"
+                     oninput="this.dataset.touched='1'" />
+            </label>
+          </div>
+          <div class="qty-presets" aria-label="常用数量">
+            <button type="button" class="qty-chip" onclick="this.form.qty.value=50;this.form.qty.focus();fitmentUnitRange(this.form.unit)">50</button>
+            <button type="button" class="qty-chip" onclick="this.form.qty.value=100;this.form.qty.focus();fitmentUnitRange(this.form.unit)">100</button>
+            <button type="button" class="qty-chip" onclick="this.form.qty.value=217;this.form.qty.focus();fitmentUnitRange(this.form.unit)">217</button>
+            <button type="button" class="qty-chip" onclick="this.form.qty.value=500;this.form.qty.focus();fitmentUnitRange(this.form.unit)">500</button>
+          </div>
+          <div class="sheet-actions">
+            <button type="submit" class="btn-primary">确认数量 / 单价</button>
+          </div>
+        </form>
+        <script>
+          function fitmentUnitRange(el) {
+            if (!el) return;
+            var lo = parseFloat(el.min), hi = parseFloat(el.max), u = parseFloat(el.value);
+            var note = el.parentElement.querySelector('.unit-error');
+            var bad = el.value !== '' && !isNaN(lo) && !isNaN(hi) && (u < lo || u > hi);
+            var msg = bad ? ('单价需在价区 USD ' + el.min + '–' + el.max + ' 内') : '';
+            el.setCustomValidity(msg);
+            el.classList.toggle('is-out', bad);
+            if (note) {
+              note.hidden = !bad;
+              note.textContent = msg;
+            }
+            var t = el.form.total;
+            if (!t || t.dataset.touched) return;
+            var q = parseInt(el.form.qty.value, 10);
+            t.value = (!bad && u >= 0 && q > 0) ? String(Math.round(u * q * 100) / 100) : '';
+          }
+          var unitInput = document.querySelector('input[name="unit"]');
+          if (unitInput && unitInput.value) fitmentUnitRange(unitInput);
+        </script>
+    </div>
+  </section>
+
+  {% elif show_result %}
+  <div class="result-stage">
+    {% if wizard.back and not is_unique %}
+    <p class="result-back">
+      <a class="btn-back" href="{% if wizard.back.href %}{{ wizard.back.href }}{% else %}/fitment?{{ qs_only(wizard.back.params)|safe }}{% endif %}">{{ wizard.back.label }}</a>
+    </p>
+    {% endif %}
+
+    {% if is_unique %}
+    {% set c = result.candidates[0] %}
+    <article class="spec-sheet">
+        <header class="spec-head hit-identity">
+          <p class="hit-badge">已精确定片</p>
+          <p class="hit-role">确定的刹车片</p>
+          <h2 class="hit-part">{{ c.master_id }}</h2>
+          <div class="hit-facts">
+            <div>
+              <span>车桥</span>
+              <strong>{{ c.axle_label }}</strong>
+            </div>
+            <div>
+              <span>规格</span>
+              <strong>{{ c.size_raw or '—' }}</strong>
+            </div>
+            <div>
+              <span>型式</span>
+              <strong>{{ c.brake_type if c.brake_type and c.brake_type != '—' else '—' }}</strong>
+            </div>
+          </div>
+        </header>
+
+        <div class="hit-metrics">
+          <div class="is-lead">
+            <span>价区</span>
+            <strong>{% if c.price_range_usd != '—' %}{{ c.price_range_usd }}{% else %}待核价{% endif %}</strong>
+            <em>{% if c.price_range_usd != '—' %}USD · 示意{% else %}成交价待核{% endif %}</em>
+          </div>
+          <div>
+            <span>置信度</span>
+            <strong>{{ c.confidence_level or '—' }}</strong>
+            <em>车桥 1:1</em>
+          </div>
+        </div>
+
+        {% if c.code_map or c.alt_codes %}
+        <div class="hit-block">
+          <span class="hit-k">一物多码</span>
+          <div class="code-chips">
+            {% if c.code_map %}
+              {% for row in c.code_map %}<span class="code-chip" title="{{ row.source }}">{{ row.code }}</span>{% endfor %}
+            {% else %}
+              {% for code in c.alt_codes %}<span class="code-chip">{{ code }}</span>{% endfor %}
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if c.why_line %}
+        <details class="why-fold">
+          <summary>为什么是这一片</summary>
+          <ul>
+            {% for bit in c.why_line.split('；') %}
+            <li>{{ bit }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+
+        <div class="sheet-actions">
+          <a class="btn-primary hit-cta" href="/fitment?{{ qs({'pick': c.id, 'qty': ''}) }}#quote-workspace">填数量 · 出报价依据 →</a>
+        </div>
+    </article>
+    {% else %}
+    <header class="result-head">
+      <p class="wizard-step">候选</p>
+      <h2 class="result-title">{% if wizard.phase == 'pick' %}{{ wizard.title }}{% else %}{{ result.candidates|length }} 条可能适配{% endif %}</h2>
+      <p class="result-hint">{% if wizard.hint %}{{ wizard.hint }}{% else %}勾选最接近的一条，再填数量出报价依据。{% endif %}</p>
+    </header>
+
+    <div class="card-list {% if result.candidates|length == 1 %}card-list-solo{% elif result.candidates|length == 2 %}card-list-2{% endif %}">
+      {% for c in result.candidates %}
+      <article class="cand-card">
+        <div class="cand-card-head">
+          <div>
+            <p class="cand-kicker">候选 {{ '%02d'|format(loop.index) }}</p>
+            <h2>{{ c.master_id }}</h2>
+          </div>
+          <span class="cand-index">{{ '%02d'|format(loop.index) }}</span>
+        </div>
+        <p class="cand-axle">{{ c.axle_label }} · 1:1</p>
+        <p class="cand-size">{{ c.size_raw or '—' }}</p>
+        <div class="cand-meta">
+          <span>{% if c.price_range_usd != '—' %}USD {{ c.price_range_usd }}{% else %}待核价{% endif %}</span>
+          <span>{{ c.evidence_line.replace('证据：', '') }}</span>
+        </div>
+        {% if c.code_map or c.alt_codes %}
+        <div class="code-chips">
+          {% if c.code_map %}
+            {% for row in c.code_map[:4] %}<span class="code-chip" title="{{ row.source }}">{{ row.code }}</span>{% endfor %}
+          {% else %}
+            {% for code in c.alt_codes[:4] %}<span class="code-chip">{{ code }}</span>{% endfor %}
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if c.why_line %}
+        <details class="why-fold">
+          <summary>为什么</summary>
+          <ul>
+            {% for bit in c.why_line.split('；') %}
+            <li>{{ bit }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+        <a class="btn-primary cand-cta" href="/fitment?{{ qs({'pick': c.id, 'qty': ''}) }}#quote-workspace">勾选 · 填数量报价 →</a>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
