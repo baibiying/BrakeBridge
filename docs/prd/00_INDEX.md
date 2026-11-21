@@ -74,10 +74,7 @@
 | `features/F1_拓客.md` | A | 功能范围与验收 |
 | `features/F2_询盘承接.md` | B | 功能范围与验收 |
 | `features/F3_车型速配.md` | C | 功能范围、匹配规则、防幻觉 |
-| `owners/A_拓客.md` | A | 任务书（P0/P1、时间盒） |
-| `owners/B_询盘.md` | B | 任务书 |
-| `owners/C_速配.md` | C | 任务书 |
-| `owners/PM_海报与展演.md` | PM | 任务书 |
+| `05_AI协作规范.md` | 全员 | 跟 AI 怎么说话、每人的第一条指令、禁止清单 |
 | `quality/验收清单.md` | 全员 | 明天照着跑 |
 | `quality/风险与决策.md` | PM | 风险与已拍板决策 |
 | `demo/海报文案与简介.md` | PM | 成品文案，直接排版 |
