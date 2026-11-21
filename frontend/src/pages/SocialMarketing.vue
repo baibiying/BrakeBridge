@@ -177,7 +177,7 @@ function generateArticle() {
     const result = await submit<{ title: string; body: string; refs: Source[]; engine: string; asset_id?: number | null }>(
       path + '/generate-article', multipart({ topic: quick.value.topic, language: quick.value.language,
         title: quick.value.title, body: quick.value.body, news_ids: quick.value.news_ids,
-        use_images: quick.value.use_images ? '1' : '', live_news: quick.value.live_news ? '1' : '' }),
+        platforms: quick.value.platforms, use_images: quick.value.use_images ? '1' : '', live_news: quick.value.live_news ? '1' : '' }),
     )
     Object.assign(quick.value, { title: result.title, body: result.body })
     quickReferences.value = result.refs

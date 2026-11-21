@@ -237,19 +237,36 @@ def openai_payload(model, scope, instructions=INSTRUCTIONS):
             "instructions": instructions, "input": json.dumps(scope, ensure_ascii=False)}
 
 
+def chat_message(result):
+    choice = result["choices"][0]
+    if choice.get("finish_reason") == "length":
+        raise ResearchUnavailable("模型输出达到长度上限，未生成完整结果。请缩短原稿或改用支持更长输出的模型。")
+    message = choice["message"]
+    content = message.get("content")
+    if isinstance(content, list):
+        content = "\n".join(part["text"] for part in content if isinstance(part, dict)
+                            and part.get("type") in {"text", "output_text"} and isinstance(part.get("text"), str))
+    if not isinstance(content, str) or not content.strip():
+        raise ResearchUnavailable("模型接口已响应，但没有返回正文。请检查所选模型是否支持对话文本输出。")
+    return message, content
+
+
 def unpack(provider, result):
     if provider == "deepseek":
-        message = result["choices"][0]["message"]
+        message, content = chat_message(result)
         calls = [call for step in message.get("server_tool_calls", []) for call in step.get("calls", [])
                  if call.get("status") == "completed"]
         output = [source for call in calls for source in call.get("sources", [])]
         citations = [item.get("url_citation", {}) for item in message.get("annotations", []) if item.get("type") == "url_citation"]
-        return message["content"], source_map(output + citations) if calls else {}
+        return content, source_map(output + citations) if calls else {}
     protocol = PROVIDERS[provider]["protocol"]
     if protocol == "chat":
-        return result["choices"][0]["message"]["content"], {}
+        _, content = chat_message(result)
+        return content, {}
     if protocol == "anthropic":
         return "\n".join(part["text"] for part in result["content"] if part["type"] == "text"), {}
+    if result.get("status") == "incomplete":
+        raise ResearchUnavailable("模型结果尚未完整返回，未保存为分析结果。")
     outputs = result.get("output", [])
     calls = [item for item in outputs if item.get("type") == "web_search_call" and item.get("status") == "completed"]
     contents = [content for item in outputs if item.get("type") == "message"
@@ -259,8 +276,20 @@ def unpack(provider, result):
     return "\n".join(content.get("text", "") for content in contents), source_map(sources + citations) if calls else {}
 
 
+def json_object(raw):
+    raw = raw.lstrip("\ufeff \t\r\n")
+    if raw.startswith("<think>"):
+        _, marker, raw = raw.partition("</think>")
+        if not marker:
+            raise ValueError("Missing final answer")
+    result, _ = json.JSONDecoder().raw_decode(raw[raw.index("{"):])
+    if not isinstance(result, dict):
+        raise ValueError("Expected JSON object")
+    return result
+
+
 def backed_candidates(raw, sources, row):
-    body = json.loads(raw[raw.index("{"):raw.rindex("}") + 1])
+    body = json_object(raw)
     items = body.get("items")
     if not isinstance(items, list):
         raise ValueError("Invalid candidate list")
@@ -356,9 +385,12 @@ def model_payload(config, context, instructions, web=False):
     if PROVIDERS[provider]["protocol"] == "anthropic":
         return {"model": model, "system": instructions, "max_tokens": 2400,
                 "messages": [{"role": "user", "content": content}]}
-    return {"model": model, "max_tokens": 2400, "messages": [
+    payload = {"model": model, "max_tokens": 2400, "messages": [
         {"role": "system", "content": instructions}, {"role": "user", "content": content}
     ]}
+    if provider == "custom" and model.rsplit("/", 1)[-1].casefold().startswith(("deepseek-v4", "deepseek-flash")):
+        payload.update(thinking={"type": "disabled"}, response_format={"type": "json_object"})
+    return payload
 
 
 def inspect_provider(values, list_only=False):
@@ -416,9 +448,7 @@ def ask(instructions, context, web=False):
     payload = model_payload(config, context, instructions, web)
     text, sources = request_model(config, key, payload)
     try:
-        decoded = json.loads(text[text.index("{"):text.rindex("}") + 1])
-        if not isinstance(decoded, dict):
-            raise ValueError
+        decoded = json_object(text)
     except (TypeError, AttributeError, ValueError) as error:
         raise ResearchUnavailable("模型未返回有效的分析结果。") from error
     return decoded, sources

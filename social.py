@@ -274,7 +274,7 @@ def record_article_news(items, cited, today):
     return list(verified.values())
 
 
-def generate_article(topic, language, title, body, selected, event, *, use_images=False, live_news=False):
+def generate_article(topic, language, title, body, selected, event, *, use_images=False, live_news=False, short_x=False):
     if topic not in TOPICS or language not in TOPICS[topic]:
         raise ValueError("请选择文章主题和语言。")
     default_title, default_body = TOPICS[topic][language]
@@ -291,6 +291,12 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
             "结合真正相关的行业热点并标明来源名称，无法核实就省略。严禁承诺未经核实的展位、参展、认证、适配、价格、交期。"
             "配图仅从素材中选一张与正文直接匹配的产品图，返回整数 asset_id；没有合适的图就返回 null。"
         )
+        if short_x:
+            limit = 110 if language == "zh" else 235
+            prompt += (
+                f"目标包含 X。正文最多 {limit} 个字符，包含标点和空格。优先保留一条热点和一个采购行动，"
+                "正文用自然的简短段落，省去长链接、事实来源的括注和免责声明。所用来源会随稿件保存。"
+            )
         search = live_news and not selected
         if search:
             prompt += (

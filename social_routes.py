@@ -91,7 +91,7 @@ def register(app, event_details):
         return social.generate_article(data.get("topic", "catalog"), data.get("language", "en"),
                                        data.get("title", ""), data.get("body", ""), selected_ids("news_ids"),
                                        event_details(app), use_images=data.get("use_images") == "1",
-                                       live_news=data.get("live_news") == "1")
+                                       live_news=data.get("live_news") == "1", short_x="twitter" in data.getlist("platforms"))
 
     @app.get("/api/social/drafts/<int:draft_id>")
     def social_detail(draft_id):

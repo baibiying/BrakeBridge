@@ -502,6 +502,27 @@ class SalesWorkflowTest(unittest.TestCase):
             self.assertEqual(changed.status_code, 400)
             self.assertEqual(post.call_count, 1)
 
+    def test_chat_gateway_handles_reasoning_and_structured_content(self):
+        import research_agent
+
+        config = {"provider": "custom", "model": "deepseek-v4.1-flash-fixture"}
+        payload = research_agent.model_payload(config, {}, "输出 JSON 对象。")
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+        self.assertEqual(payload["response_format"], {"type": "json_object"})
+        generic = research_agent.model_payload({**config, "model": "other-chat"}, {}, "输出 JSON 对象。")
+        self.assertNotIn("thinking", generic)
+        self.assertNotIn("response_format", generic)
+        rendered, _ = research_agent.unpack("custom", {"choices": [{"finish_reason": "stop", "message": {
+            "reasoning_content": "ignore",
+            "content": [{"type": "text", "text": "```json\n{\"score\": 75}\n```"}, {"type": "image_url"}],
+        }}]})
+        self.assertEqual(research_agent.json_object(rendered), {"score": 75})
+        self.assertEqual(research_agent.json_object('<think>{ "score": 0 }</think>\n{"score":75}'), {"score": 75})
+        with self.assertRaisesRegex(research_agent.ResearchUnavailable, "长度上限"):
+            research_agent.unpack("custom", {"choices": [{"finish_reason": "length", "message": {"content": ""}}]})
+        with self.assertRaisesRegex(research_agent.ResearchUnavailable, "没有返回正文"):
+            research_agent.unpack("custom", {"choices": [{"finish_reason": "stop", "message": {"content": "  "}}]})
+
     def test_ai_and_rule_scoring_for_both_modules_and_weight_extremes(self):
         headers = {"X-CSRFToken": self.client.get("/api/session").json["csrf"]}
         with self.app.app_context():

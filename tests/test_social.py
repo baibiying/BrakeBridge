@@ -317,8 +317,9 @@ class SocialWorkflowTest(unittest.TestCase):
         cited = {research_agent.source_key(url): (url, "主办方公布议程")}
         with patch("sales_agent.research_agent.settings", return_value={"configured": True}), \
              patch("social.research_agent.ask", return_value=(response, cited)) as ask:
-            generated = self.post("/generate-article", live_news="1", use_images="1")
+            generated = self.post("/generate-article", live_news="1", use_images="1", platforms=["twitter"], language="zh")
             self.assertTrue(ask.call_args.kwargs["web"])
+            self.assertIn("正文最多 110 个字符", ask.call_args.args[0])
             self.assertIn("2026 年浙江冠英企业介绍", [item["title"] for item in ask.call_args.args[1]["sources"]])
             self.assertEqual(generated["asset_id"], asset_id)
             self.assertIn(url, [item["url"] for item in generated["refs"]])
