@@ -22,6 +22,8 @@ from .extraction import build_card
 from .policy import PRICE_REQUEST, plan
 
 bp = Blueprint("comment_desk", __name__)
+from . import x_live
+bp.register_blueprint(x_live.bp)
 SOURCES = {"social": "社媒评论", "inquiry": "已有询盘", "demo": "演示样本"}
 STATES = {"pending": "待处理", "review": "待复核", "done": "已跟进", "archive": "留档"}
 MODES = {"candidate": "目录候选", "acknowledge": "可先回复", "manual": "人工核对", "skip": "无需回复"}

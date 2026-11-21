@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { NAlert, NButton, NEmpty, NInput, NModal, NPopconfirm, NSelect, NSpin, NTag } from 'naive-ui'
 import { IconDownload, IconExternalLink, IconRefresh } from '@tabler/icons-vue'
 import { api, dateTime, errorText, query, safeUrl, submit } from '../api'
+import CommentDeskX from './CommentDeskX.vue'
 
 const sources = { social: '社媒评论', inquiry: '已有询盘', demo: '演示样本' } as const
 const modes = { candidate: '目录候选', acknowledge: '可先回复', manual: '人工核对', skip: '无需回复' } as const
@@ -24,6 +25,7 @@ type Item = {
 }
 
 const source = ref<Source>('social')
+const xPanel = ref(new URLSearchParams(location.search).get('panel') === 'x')
 const mode = ref<Mode | ''>('')
 const state = ref<State | ''>('')
 const items = ref<Item[]>([])
@@ -84,6 +86,7 @@ async function load(key?: string) {
 }
 
 function changeSource(value: Source) {
+  xPanel.value = false
   if (source.value === value) return
   source.value = value
   mode.value = ''
@@ -167,24 +170,26 @@ onMounted(() => void load())
   <div class="desk">
     <header class="desk-head">
       <div><h1>线索承接</h1><p>识别采购意向、准备首回复，并记录销售复核结果。</p></div>
-      <div class="desk-actions">
+      <div v-if="!xPanel" class="desk-actions">
         <NButton :loading="busy" :disabled="saving" @click="load(selected)"><template #icon><IconRefresh /></template>刷新</NButton>
         <NButton tag="a" :href="exportUrl" :disabled="busy || !visible.length"><template #icon><IconDownload /></template>导出筛选结果</NButton>
       </div>
     </header>
     <section class="glass desk-controls">
       <div class="desk-actions">
-        <NButton v-for="key in sourceKeys" :key="key" :type="source === key ? 'primary' : 'default'" :secondary="source === key"
+        <NButton v-for="key in sourceKeys" :key="key" :type="!xPanel && source === key ? 'primary' : 'default'" :secondary="!xPanel && source === key"
           :disabled="saving" @click="changeSource(key)">{{ sources[key] }}</NButton>
-        <RouterLink v-if="source === 'social'" to="/social?tab=comments" class="source-link">前往社媒营销同步 <IconExternalLink :size="15" /></RouterLink>
+        <NButton :type="xPanel ? 'primary' : 'default'" :secondary="xPanel" @click="xPanel = true">真实 X 平台演示</NButton>
+        <RouterLink v-if="!xPanel && source === 'social'" to="/social?tab=comments" class="source-link">前往社媒营销同步 <IconExternalLink :size="15" /></RouterLink>
       </div>
-      <NAlert v-if="source === 'demo'" type="info">演示样本用于试验目录匹配和数量复核。草稿仅供预览。</NAlert>
-      <div class="counts" aria-label="按处理建议筛选">
+      <NAlert v-if="!xPanel && source === 'demo'" type="info">演示样本用于试验目录匹配和数量复核。草稿仅供预览。</NAlert>
+      <div v-if="!xPanel" class="counts" aria-label="按处理建议筛选">
         <button v-for="key in modeKeys" :key="key" type="button" :aria-pressed="mode === key" :disabled="saving"
           @click="chooseMode(key)"><span>{{ modes[key] }}</span><strong>{{ counts[key] }}</strong></button>
       </div>
     </section>
-    <NAlert v-if="failure" type="error" role="alert">{{ failure }}</NAlert>
+    <CommentDeskX v-if="xPanel" />
+    <NAlert v-else-if="failure" type="error" role="alert">{{ failure }}</NAlert>
     <NSpin v-else :show="busy">
       <div class="desk-grid">
         <section class="glass desk-list">
