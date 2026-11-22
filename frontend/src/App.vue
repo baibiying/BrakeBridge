@@ -2,7 +2,7 @@
 import { watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NConfigProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
-import { IconLayoutDashboard, IconBuildingStore, IconLogout, IconRouteAltLeft, IconSettings, IconMailFast, IconSpeakerphone } from '@tabler/icons-vue'
+import { IconLayoutDashboard, IconBuildingStore, IconLogout, IconRouteAltLeft, IconSettings, IconMailFast, IconSpeakerphone, IconSteeringWheel } from '@tabler/icons-vue'
 import { IconMessageSearch } from '@tabler/icons-vue'
 import { auth, errorText, logout, readMeta, ui } from './api'
 
@@ -12,6 +12,7 @@ const failure = ref('')
 const nav = [
   { to: '/dashboard', label: '总览', icon: IconLayoutDashboard },
   { to: '/lead-inquiries', label: '询盘转化', icon: IconMailFast },
+  { to: '/fitment', label: '速配', icon: IconSteeringWheel, external: true },
   { to: '/buyers', label: '客户名单', icon: IconBuildingStore },
   { to: '/social', label: '社媒营销', icon: IconSpeakerphone },
   { to: '/comment-desk', label: '线索承接', icon: IconMessageSearch },
@@ -45,9 +46,14 @@ async function signOut() {
             <span><strong>BrakeBridge</strong><small>冠英外贸工作台</small></span>
           </RouterLink>
           <nav aria-label="主导航">
-            <RouterLink v-for="item in nav" :key="item.to" :to="item.to">
-              <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
-            </RouterLink>
+            <template v-for="item in nav" :key="item.to">
+              <a v-if="item.external" :href="item.to">
+                <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
+              </a>
+              <RouterLink v-else :to="item.to">
+                <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
+              </RouterLink>
+            </template>
           </nav>
           <div class="side-account">
             <span class="avatar">A</span>

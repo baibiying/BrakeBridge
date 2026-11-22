@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NSelect, NInput, NFormItem, NModal, NCard, NSpin, NEmpty, useMessage } from 'naive-ui'
 import { IconCalendarEvent, IconInbox, IconTargetArrow, IconPlus, IconArrowUpRight, IconListDetails,
-  IconTimeline, IconChartBar, IconMailFast, IconChevronLeft, IconChevronRight } from '@tabler/icons-vue'
+  IconTimeline, IconChartBar, IconMailFast, IconChevronLeft, IconChevronRight, IconSteeringWheel } from '@tabler/icons-vue'
 import { ApiError, api, errorText, options, query, submit, ui } from '../api'
 import type { DashboardData, Task } from '../types'
 import DashboardChart from '../components/DashboardChart.vue'
@@ -159,6 +159,7 @@ async function saveTask() {
           <button v-for="item in scopes" :key="item.key" type="button" :aria-pressed="filters.kind === item.key"
             @click="filters.kind = item.key">{{ item.label }}</button>
         </div>
+        <a href="/fitment" class="overview-link"><IconSteeringWheel :size="16" />车型速配</a>
         <a href="#timeline" class="overview-link"><IconTimeline :size="16" />展会排期</a>
       </div>
     </header>

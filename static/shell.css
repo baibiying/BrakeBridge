@@ -1,0 +1,297 @@
+/* 与工作台同一套外壳和配色。后加载，盖过速配页旧主题。 */
+:root {
+  --ink: #182944;
+  --muted: #546981;
+  --accent: #315dea;
+  --line: #dfe7f2;
+  --glass: rgba(255, 255, 255, .69);
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--ink);
+  font-family: Inter, "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse at 13% 7%, #cfdff8 0, transparent 46%),
+    radial-gradient(ellipse at 92% 15%, #dce1f8 0, transparent 42%),
+    radial-gradient(ellipse at 45% 99%, #deedf2 0, transparent 50%),
+    #eaf1fa;
+  background-attachment: fixed;
+}
+a { color: inherit; text-decoration: none; }
+.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; padding: 22px; width: 100%; }
+.glass {
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, .94);
+  box-shadow: inset 0 1px 0 #fff8, 0 15px 45px -28px #24467575;
+  backdrop-filter: blur(21px) saturate(130%);
+  border-radius: 19px;
+}
+.sidebar { position: sticky; top: 22px; height: calc(100dvh - 44px); display: flex; flex-direction: column; padding: 23px 15px 14px; z-index: 2; }
+body:has(.fitment-page) .sidebar .brand,
+.sidebar .brand { display: flex; align-items: center; gap: 12px; padding: 0 7px; color: #182944 !important; font-size: 18px !important; font-weight: 750; letter-spacing: -.055em; text-shadow: none !important; }
+body:has(.fitment-page) .sidebar .brand strong,
+.sidebar .brand strong { display: block; font-size: 18px !important; font-weight: 750; letter-spacing: -.055em; color: #182944 !important; text-shadow: none !important; }
+body:has(.fitment-page) .sidebar .brand small,
+.sidebar .brand small { display: block; color: #546981 !important; font-size: 11px !important; margin-top: 1px; letter-spacing: .04em; font-weight: 500; text-shadow: none !important; }
+body:has(.fitment-page) .sidebar nav a { color: #3c526f !important; font-size: 14px !important; font-weight: 570; text-shadow: none !important; }
+body:has(.fitment-page) .sidebar nav a.is-current { color: #2751cd !important; background: #dde7ff !important; }
+.logo { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 auto; color: white; border-radius: 12px;
+  background: linear-gradient(150deg, #688bfd, #315dea 72%); box-shadow: inset 0 1px 0 #fff6, 0 6px 14px #3866dd42; }
+.sidebar nav { display: grid; gap: 5px; margin-top: 41px; }
+.sidebar nav a { display: flex; align-items: center; gap: 11px; color: #3c526f; font-size: 14px; font-weight: 570;
+  min-height: 44px; padding: 0 12px; border-radius: 10px; }
+.sidebar nav a:hover { background: #ffffffa9; }
+.sidebar nav a.is-current { background: #dde7ff; color: #2751cd; font-weight: 690; box-shadow: inset 0 1px 0 #fff9; }
+.main { min-width: 0; padding: 12px 6px 10px 0; max-width: none; }
+.skip { position: fixed; z-index: 10000; top: 0; left: 0; background: white; padding: 8px; transform: translateY(-120%); }
+.skip:focus { transform: none; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 21px; }
+.page-head h1, body:has(.fitment-page) .page-head h1 {
+  margin: 0; font-size: clamp(26px, 3vw, 36px) !important; line-height: 1.2; font-weight: 760; letter-spacing: -.055em; color: #182944 !important;
+}
+.date-caption { display: flex; gap: 6px; align-items: center; color: var(--muted); margin: 8px 0 0; font-size: 13px; }
+.home-panel { padding: 28px; max-width: 560px; }
+.home-panel .lead { color: var(--muted); margin: 8px 0 18px; }
+.home-panel .btn-primary, body:has(.fitment-page) .btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 0 16px; border: 0; border-radius: 9px;
+  background: #315dea; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+
+body:has(.fitment-page) {
+  font-family: Inter, "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif !important;
+  color: #182944 !important;
+  background:
+    radial-gradient(ellipse at 13% 7%, #cfdff8 0, transparent 46%),
+    radial-gradient(ellipse at 92% 15%, #dce1f8 0, transparent 42%),
+    radial-gradient(ellipse at 45% 99%, #deedf2 0, transparent 50%),
+    #eaf1fa !important;
+}
+body:has(.fitment-page) .main { padding: 12px 6px 24px 0 !important; max-width: none !important; }
+body:has(.fitment-page) .fitment-page {
+  background: transparent !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  color: #182944 !important;
+  font-family: inherit !important;
+}
+body:has(.fitment-page) .fitment-page::before,
+body:has(.fitment-page) .fitment-page::after { display: none !important; }
+
+body:has(.fitment-page) .fit-rail { display: flex; flex-wrap: wrap; gap: 8px; }
+body:has(.fitment-page) .fit-rail span {
+  display: inline-flex !important; align-items: center; gap: 6px;
+  min-height: 34px !important; padding: 0 12px !important;
+  background: #ffffff93 !important; color: #415778 !important;
+  border: 1px solid #fff !important; border-radius: 999px !important;
+  font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+body:has(.fitment-page) .fit-rail span i {
+  display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 50%; background: #e7eef8 !important; color: #415778 !important;
+  font-style: normal; font-size: 11px;
+}
+body:has(.fitment-page) .fit-rail span.on {
+  background: #dde7ff !important; color: #2751cd !important; border-color: #dde7ff !important;
+}
+body:has(.fitment-page) .fit-rail span.on i { background: #fff !important; color: #2751cd !important; }
+body:has(.fitment-page) .fit-rail span.done { color: #2751cd !important; }
+
+body:has(.fitment-page) .answered-chips {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none;
+}
+body:has(.fitment-page) .answered-chips li,
+body:has(.fitment-page) .answered-chips .reset a {
+  font-size: 13px !important; font-weight: 600 !important; padding: 6px 10px !important;
+  border-radius: 999px !important; background: #ffffff93 !important; color: #415778 !important;
+  border: 1px solid #fff !important; box-shadow: none !important;
+}
+body:has(.fitment-page) .answered-chips em { font-style: normal; color: #546981; margin-right: 6px; }
+
+body:has(.fitment-page) .ask-focus,
+body:has(.fitment-page) .spec-sheet,
+body:has(.fitment-page) .cand-card,
+body:has(.fitment-page) .miss-panel,
+body:has(.fitment-page) .quote-slim {
+  background: rgba(255, 255, 255, .69) !important;
+  border: 1px solid rgba(255, 255, 255, .94) !important;
+  box-shadow: inset 0 1px 0 #fff8, 0 15px 45px -28px #24467575 !important;
+  border-radius: 19px !important;
+  padding: 22px !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  text-align: left !important;
+}
+body:has(.fitment-page) .ask-focus { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+body:has(.fitment-page) .ask-path,
+body:has(.fitment-page) .wizard-hint,
+body:has(.fitment-page) .ask-next,
+body:has(.fitment-page) .result-hint,
+body:has(.fitment-page) .miss-sub,
+body:has(.fitment-page) .preview-note {
+  margin: 0; text-align: left !important; color: #546981 !important;
+  font-size: 14px !important; font-weight: 500 !important; letter-spacing: 0 !important;
+}
+body:has(.fitment-page) .wizard-title,
+body:has(.fitment-page) .hit-part,
+body:has(.fitment-page) .q-part,
+body:has(.fitment-page) .miss-title,
+body:has(.fitment-page) .result-title,
+body:has(.fitment-page) .cand-card h2 {
+  margin: 0; text-align: left !important;
+  font-size: clamp(26px, 3vw, 36px) !important; line-height: 1.2 !important;
+  font-weight: 760 !important; letter-spacing: -.055em !important; color: #182944 !important;
+}
+body:has(.fitment-page) .wizard-title::after { display: none !important; }
+body:has(.fitment-page) .wizard-field span,
+body:has(.fitment-page) .ask-examples span,
+body:has(.fitment-page) .hit-facts span,
+body:has(.fitment-page) .hit-metrics span,
+body:has(.fitment-page) .q-stats span,
+body:has(.fitment-page) .hit-k,
+body:has(.fitment-page) .q-kicker,
+body:has(.fitment-page) .cand-kicker,
+body:has(.fitment-page) .hit-badge,
+body:has(.fitment-page) .result-head .wizard-step {
+  text-align: left !important; color: #45617d !important;
+  font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0 !important;
+}
+body:has(.fitment-page) .hit-role { color: #315dea !important; font-size: 14px !important; font-weight: 600 !important; margin: 4px 0; }
+body:has(.fitment-page) .fitment-page .spec-head,
+body:has(.fitment-page) .fitment-page .hit-identity {
+  display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 8px !important;
+}
+
+body:has(.fitment-page) .fitment-page input,
+body:has(.fitment-page) .wizard-field input,
+body:has(.fitment-page) .q-stats input {
+  width: 100%; height: 42px !important; min-height: 42px !important;
+  padding: 0 12px !important; border-radius: 9px !important;
+  border: 1px solid #d5e0ee !important; background: #fff !important;
+  color: #182944 !important; -webkit-text-fill-color: #182944 !important;
+  box-shadow: none !important; font-size: 15px !important; font-weight: 500 !important;
+}
+body:has(.fitment-page) .q-stats input.is-out {
+  border-color: #d46d54 !important; box-shadow: 0 0 0 3px #d46d5433 !important;
+}
+body:has(.fitment-page) .unit-error { color: #9b4a31 !important; font-size: 13px !important; font-weight: 600 !important; }
+
+body:has(.fitment-page) .wizard-actions,
+body:has(.fitment-page) .sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+body:has(.fitment-page) .fitment-page .btn-primary,
+body:has(.fitment-page) .ask-focus .btn-primary,
+body:has(.fitment-page) .cand-cta,
+body:has(.fitment-page) .hit-cta,
+body:has(.fitment-page) .choice-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 40px !important; height: auto !important; padding: 0 16px !important;
+  border-radius: 9px !important; border: 0 !important;
+  background: #315dea !important; color: #fff !important;
+  box-shadow: none !important; font-size: 14px !important; font-weight: 600 !important;
+  letter-spacing: 0 !important; text-decoration: none;
+}
+body:has(.fitment-page) .fitment-page .btn-primary:hover,
+body:has(.fitment-page) .choice-btn:hover,
+body:has(.fitment-page) .cand-cta:hover { background: #234ccd !important; transform: none !important; }
+body:has(.fitment-page) .btn-primary kbd {
+  margin-left: 6px; padding: 0; background: transparent; color: inherit; font-size: 12px; font-weight: 500;
+}
+body:has(.fitment-page) .btn-back,
+body:has(.fitment-page) .btn-skip,
+body:has(.fitment-page) .ask-examples a,
+body:has(.fitment-page) .qty-chip,
+body:has(.fitment-page) .nearest-list a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 40px !important; height: auto !important; padding: 0 14px !important;
+  border-radius: 9px !important; border: 1px solid #d5e0ee !important;
+  background: #fff !important; color: #3c526f !important;
+  box-shadow: none !important; font-size: 14px !important; font-weight: 600 !important;
+  text-decoration: none;
+}
+body:has(.fitment-page) .btn-back:hover,
+body:has(.fitment-page) .btn-skip:hover,
+body:has(.fitment-page) .ask-examples a:hover,
+body:has(.fitment-page) .qty-chip:hover { background: #eef3fb !important; transform: none !important; }
+body:has(.fitment-page) .ask-examples,
+body:has(.fitment-page) .choice-grid,
+body:has(.fitment-page) .qty-presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+body:has(.fitment-page) .ask-choices .choice-btn { flex: 1 1 160px; }
+
+body:has(.fitment-page) .hit-facts,
+body:has(.fitment-page) .hit-metrics,
+body:has(.fitment-page) .q-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+body:has(.fitment-page) .hit-facts > div,
+body:has(.fitment-page) .hit-metrics > div,
+body:has(.fitment-page) .q-stats > div,
+body:has(.fitment-page) .q-stats label,
+body:has(.fitment-page) .code-chip,
+body:has(.fitment-page) .why-fold {
+  background: #f8fbff !important; border: 1px solid #e0e9f5 !important;
+  border-radius: 11px !important; box-shadow: none !important;
+  color: #182944 !important; transform: none !important;
+}
+body:has(.fitment-page) .hit-facts > div,
+body:has(.fitment-page) .hit-metrics > div,
+body:has(.fitment-page) .q-stats label { min-height: 0 !important; padding: 12px 14px !important; }
+body:has(.fitment-page) .hit-facts strong,
+body:has(.fitment-page) .hit-metrics strong,
+body:has(.fitment-page) .q-stats strong { font-size: 18px !important; color: #182944 !important; font-weight: 700; }
+body:has(.fitment-page) .code-chip { display: inline-flex; padding: 4px 8px !important; font-size: 12px !important; font-weight: 600; }
+body:has(.fitment-page) .why-fold { padding: 10px 12px; }
+body:has(.fitment-page) .why-fold summary,
+body:has(.fitment-page) .why-fold li { color: #182944 !important; font-size: 14px !important; font-weight: 500 !important; }
+body:has(.fitment-page) .hit-facts > div:hover,
+body:has(.fitment-page) .hit-metrics > div:hover,
+body:has(.fitment-page) .q-stats label:hover,
+body:has(.fitment-page) .cand-card:hover,
+body:has(.fitment-page) .code-chip:hover,
+body:has(.fitment-page) .why-fold:hover {
+  transform: none !important; border-color: #c9d8ee !important;
+  box-shadow: 0 12px 29px -19px #2d4e87ae !important;
+}
+
+body:has(.fitment-page) .fitment-page.is-result .price-banner,
+body:has(.fitment-page) .fitment-page.is-result .hit-metrics > div.is-lead {
+  grid-column: 1 / -1; text-align: left !important;
+  background-color: #315dea !important;
+  background-image: none !important;
+  border: 0 !important; border-radius: 14px !important;
+  box-shadow: none !important; padding: 16px 18px !important; color: #fff !important;
+}
+body:has(.fitment-page) .fitment-page.is-result .price-banner span,
+body:has(.fitment-page) .fitment-page.is-result .hit-metrics > div.is-lead span,
+body:has(.fitment-page) .fitment-page.is-result .hit-metrics > div.is-lead em {
+  color: #e4ecff !important; -webkit-text-fill-color: #e4ecff !important;
+  font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0 !important;
+}
+body:has(.fitment-page) .fitment-page.is-result .price-banner b,
+body:has(.fitment-page) .fitment-page.is-result .hit-metrics > div.is-lead strong {
+  display: block; margin-top: 4px; color: #fff !important; -webkit-text-fill-color: #fff !important;
+  font-size: 32px !important; line-height: 1.15 !important; font-weight: 760 !important; letter-spacing: -.04em !important;
+}
+
+body:has(.fitment-page) .result-stage { min-height: 0 !important; padding: 0 !important; flex: none !important; }
+body:has(.fitment-page) .card-list {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px; height: auto !important; max-height: none !important; grid-template-rows: none !important;
+}
+body:has(.fitment-page) .cand-card { height: auto !important; min-height: 0 !important; display: flex; flex-direction: column; gap: 8px; }
+body:has(.fitment-page) .cand-axle,
+body:has(.fitment-page) .cand-size,
+body:has(.fitment-page) .cand-meta { color: #546981 !important; font-size: 14px !important; margin: 0; }
+body:has(.fitment-page) .cand-index { color: #73849e; font-size: 13px; font-weight: 700; }
+body:has(.fitment-page) .cand-cta { margin-top: 8px; align-self: flex-start; }
+
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); padding: 10px; gap: 8px; }
+  .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: 9px; }
+  .sidebar nav { order: 3; flex-basis: 100%; margin-top: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sidebar nav a { justify-content: center; font-size: 12px; padding-inline: 4px; }
+  .page-head { flex-direction: column; align-items: flex-start; }
+  body:has(.fitment-page) .hit-facts,
+  body:has(.fitment-page) .hit-metrics,
+  body:has(.fitment-page) .q-stats { grid-template-columns: 1fr; }
+}
+body.mode-mobile .shell { display: block; padding: 12px; }

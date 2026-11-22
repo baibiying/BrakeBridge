@@ -33,7 +33,7 @@ p, h1, h2, h3, dl, dd, blockquote, ul { margin: 0; }
   backdrop-filter: blur(21px) saturate(130%);
   border-radius: 19px;
 }
-.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; padding: 22px; max-width: 1750px; margin-inline: auto; }
+.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; padding: 22px; width: 100%; }
 .sidebar { position: sticky; top: 22px; height: calc(100dvh - 44px); display: flex; flex-direction: column; padding: 23px 15px 14px; z-index: 2; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 7px; color: var(--ink); }
 .brand strong { font-size: 18px; font-weight: 750; letter-spacing: -.055em; }

@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_head %}
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="{{ url_for('static', filename='fitment.css') }}?v=pricebox2" />
+<link rel="stylesheet" href="{{ url_for('static', filename='fitment.css') }}?v=workbench" />
 {% endblock %}
 
 {% block content %}
@@ -21,17 +20,17 @@
   <p class="source-banner">{{ source_label }}</p>
   {% endif %}
 
-  <div class="fit-topbar">
-    <div class="brand-lockup">
-      <h1 class="brand-name">BrakeBridge</h1>
-      <span class="brand-tag">速配</span>
+  <header class="page-head">
+    <div>
+      <h1>速配</h1>
+      <p class="date-caption">一次只问一题。编码、车桥、车型，能定片就停。</p>
     </div>
-    <div class="fit-rail" aria-hidden="true">
+    <div class="fit-rail" aria-label="进度">
       <span class="{% if on_code %}on{% elif done_code %}done{% endif %}"><i>1</i>编码</span>
       <span class="{% if on_axle %}on{% elif done_axle %}done{% endif %}"><i>2</i>车桥</span>
       <span class="{% if on_vehicle %}on{% elif wizard.done %}done{% endif %}"><i>3</i>车型/定片</span>
     </div>
-  </div>
+  </header>
 
   <ul class="answered-chips">
     {% for label, val in wizard.answered %}
@@ -153,9 +152,9 @@
           <h2 class="q-part">{{ picked_card.master_id }}</h2>
         </header>
 
-        <div class="price-banner" style="background:#0b6b58 !important;color:#fff !important;border:2px solid #7dffe0;border-radius:22px;padding:1.5rem 1.4rem 1.65rem;text-align:center;">
-          <span style="display:block;color:#d9fff4 !important;-webkit-text-fill-color:#d9fff4;font-size:1.85rem;font-weight:800;letter-spacing:0.06em;">价区 · 示意</span>
-          <b style="display:block;margin-top:0.25rem;color:#fff !important;-webkit-text-fill-color:#fff;font-size:clamp(3.4rem, 6vw, 5.2rem);font-weight:800;line-height:1.05;">{% if price_range != '—' %}USD {{ price_range }}{% else %}待核价{% endif %}</b>
+        <div class="price-banner">
+          <span>价区 · 示意</span>
+          <b>{% if price_range != '—' %}USD {{ price_range }}{% else %}待核价{% endif %}</b>
         </div>
 
         <form class="price-form" method="get" action="/fitment#quote-workspace">

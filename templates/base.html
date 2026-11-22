@@ -3,36 +3,63 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title or "BrakeBridge AI" }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <title>{{ title or "BrakeBridge" }} · 冠英外贸工作台</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}" />
   {% block extra_head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='shell.css') }}?v=fullwidth" />
 </head>
 <body class="{% if mode == 'mobile' or request.args.get('mode') == 'mobile' %}mode-mobile{% endif %}">
-  {% if request.args.get('mode') != 'mobile' %}
-  <nav class="top-nav">
-    <a class="brand" href="/">
-      <span class="brand-mark" aria-hidden="true"></span>
-      BrakeBridge
-    </a>
-    <div class="nav-links">
-      <a href="/sourcing" class="{% if active == 'sourcing' %}active{% endif %}">拓客</a>
-      <a href="/inquiry" class="{% if active == 'inquiry' %}active{% endif %}">询盘</a>
-      <a href="/fitment" class="{% if active == 'fitment' %}active{% endif %}">速配</a>
-    </div>
-  </nav>
-  {% endif %}
-  <main class="main">
-    {% block content %}
-    <section class="home-panel">
-      <p class="eyebrow">冠英 · 制动片选型</p>
-      <h1>BrakeBridge AI</h1>
-      <p class="lead">拓客 · 询盘 · 车型速配。把产品册变成能当场答的工具。</p>
-      <a class="btn-primary" href="/fitment?q=天锦KR">打开车型速配</a>
-    </section>
-    {% endblock %}
-  </main>
+  <div class="shell">
+    <a class="skip" href="#main">跳到内容</a>
+    {% if request.args.get('mode') != 'mobile' %}
+    <aside class="sidebar glass">
+      <a class="brand" href="/dashboard">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15l4-4 4 4 8-8"/><path d="M16 7h4v4"/></svg>
+        </span>
+        <span><strong>BrakeBridge</strong><small>冠英外贸工作台</small></span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="/dashboard" class="{% if active == 'home' %}is-current{% endif %}">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="7" rx="1"/><rect x="14" y="4" width="6" height="4" rx="1"/><rect x="14" y="12" width="6" height="8" rx="1"/><rect x="4" y="15" width="6" height="5" rx="1"/></svg>
+          总览
+        </a>
+        <a href="/lead-inquiries" class="{% if active == 'inquiry' %}is-current{% endif %}">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-5 4z"/></svg>
+          询盘转化
+        </a>
+        <a href="/fitment" class="{% if active == 'fitment' %}is-current{% endif %}">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+          速配
+        </a>
+        <a href="/buyers">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>
+          客户名单
+        </a>
+        <a href="/social">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 1 0-3-3"/><path d="M6 15a3 3 0 1 0 3 3"/><path d="M8 8l8-3M8 16l8 3"/><path d="M18 16a3 3 0 1 0 3-3"/></svg>
+          社媒营销
+        </a>
+        <a href="/comment-desk">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9h8M8 13h5"/><path d="M7 18l-3 3V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/></svg>
+          线索承接
+        </a>
+        <a href="/settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          系统设置
+        </a>
+      </nav>
+    </aside>
+    {% endif %}
+    <main id="main" class="main">
+      {% block content %}
+      <section class="home-panel glass">
+        <h1>BrakeBridge</h1>
+        <p class="lead">从总览进入询盘、客户和车型速配。</p>
+        <a class="btn-primary" href="/dashboard">打开工作台</a>
+      </section>
+      {% endblock %}
+    </main>
+  </div>
 </body>
 </html>
