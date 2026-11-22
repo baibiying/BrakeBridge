@@ -66,6 +66,11 @@ def plan(body, analysis, source, data_kind, event=None):
     if not qualified:
         if analysis["intent"] == "普通互动" or ENGAGEMENT.search(body) or not any(c.isalnum() for c in body):
             return {**result, "mode": "skip", "reason": "普通互动，无需跟进", "action": "保留互动记录。"}
+        if public and re.fullmatch(r"(?:这个呢|这个有吗|有吗|这款呢|你好|您好|can you help|hello|hi)[？?！!.。\s]*", body.strip(), re.I):
+            return {**result, "reason": "对象或需求不明确",
+                    "draft": ("您好，您想了解哪款产品？可以发零件号或标明图片里的位置，我们先帮您查。"
+                              if zh else "Which part are you asking about? You can share a part number or point to the item in the post."),
+                    "action": "先打开原帖核对上下文，确认产品或需求后从原渠道回复。"}
         return result
     if not public:
         if source != "inquiry":
@@ -76,6 +81,9 @@ def plan(body, analysis, source, data_kind, event=None):
     draft = ("您好，感谢留言。我们已收到，会安排同事核对。欢迎通过冠英官方联系渠道补充信息，请勿在公开区留下个人联系方式。"
              if zh else "Thank you for your message. Our team will review it. Please use Kooying’s official contact channels to share any additional details privately.")
     if is_support:
+        if re.search(r"刹车失灵|制动失灵|\b(?:brake failure|brakes? failed|safety issue)\b", body, re.I):
+            draft = ("请先停止使用疑似故障部件，并通过冠英官方渠道联系售后核查。"
+                     if zh else "Please stop using the suspected faulty part and contact Kooying support through an official channel.")
         return {**result, "mode": "acknowledge", "reason": "售后或质量问题，转人工核查", "draft": draft,
                 "action": "交售后核查订单、批次和问题照片，通过私下渠道收集资料。"}
     if analysis["intent"].startswith("展会") or EXPO.search(body) or EXPO_VISIT.search(body):
