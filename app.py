@@ -77,6 +77,12 @@ def create_app(config=None):
     lead_routes.register(app, event_details)
     social_routes.register(app, event_details)
     app.register_blueprint(comment_desk)
+    from features.fitment import fitment_bp
+    from features.inquiry import inquiry_bp
+    from features.sourcing import sourcing_bp
+    app.register_blueprint(fitment_bp)
+    app.register_blueprint(inquiry_bp)
+    app.register_blueprint(sourcing_bp)
     return app
 
 

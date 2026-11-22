@@ -1,0 +1,128 @@
+{
+  "_comment": "一物多码：同一主件号(master_id)可挂多套编码——跨主机厂不同、同一车企不同渠道/工厂也可能不同。任一码命中都落到同一尺寸/车桥。非主机厂 OE 库直连；演示占位。",
+  "parts": [
+    {
+      "master_id": "PAD-TJ-KR-FA",
+      "size_raw": "188×155×12.2/14",
+      "axle_hint": "东风天锦KR · 前 · A",
+      "brake_type": "鼓式",
+      "material_grade": "标准工况 · 待核",
+      "alt_codes": [
+        "WVA-TJ-KR-FA",
+        "GY-TJ-KR-FA",
+        "DF-PAD-188A",
+        "DF-PAD-188B",
+        "OEM-FAW-188-12",
+        "188×155×12.2/14"
+      ],
+      "code_map": [
+        {"code": "DF-PAD-188A", "source": "东风体系·渠道A", "note": "同企不同码"},
+        {"code": "DF-PAD-188B", "source": "东风体系·渠道B", "note": "同企不同码"},
+        {"code": "OEM-FAW-188-12", "source": "一汽体系·示意", "note": "跨主机厂不同码"},
+        {"code": "WVA-TJ-KR-FA", "source": "后市场/竞品", "note": "跨体系对照"},
+        {"code": "GY-TJ-KR-FA", "source": "冠英内部", "note": "主件对照码"},
+        {"code": "188×155×12.2/14", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "12–18",
+      "report_id": "TR-2024-0112（占位）",
+      "history_note": "近 90 天同类询价 3 次；客户有时报 DF-PAD-188A，有时报 WVA，均落到此前桥 A"
+    },
+    {
+      "master_id": "PAD-TJ-KR-FB",
+      "size_raw": "205×155×8.2/14.2",
+      "axle_hint": "东风天锦KR · 前 · B",
+      "brake_type": "鼓式",
+      "material_grade": "标准工况 · 待核",
+      "alt_codes": ["WVA-TJ-KR-FB", "DF-PAD-205B", "205×155×8.2/14.2"],
+      "code_map": [
+        {"code": "DF-PAD-205B", "source": "东风体系", "note": "同系另一工厂码"},
+        {"code": "WVA-TJ-KR-FB", "source": "后市场/竞品", "note": "跨体系对照"},
+        {"code": "205×155×8.2/14.2", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "11–17",
+      "report_id": "TR-2024-0118（占位）",
+      "history_note": "与前 A 易混，宽度同为 155，须用长度区分"
+    },
+    {
+      "master_id": "PAD-TJ-REAR",
+      "size_raw": "192×180×13.9/17.4",
+      "axle_hint": "东风天锦 · 后",
+      "brake_type": "鼓式",
+      "material_grade": "标准工况 · 待核",
+      "alt_codes": ["WVA-TJ-REAR", "DF-PAD-192R", "192×180×13.9/17.4"],
+      "code_map": [
+        {"code": "DF-PAD-192R", "source": "东风体系", "note": "后桥内部码"},
+        {"code": "WVA-TJ-REAR", "source": "后市场/竞品", "note": "跨体系对照"},
+        {"code": "192×180×13.9/17.4", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "14–20",
+      "report_id": "TR-2024-0201（占位）",
+      "history_note": "天锦系列后桥常见适配"
+    },
+    {
+      "master_id": "PAD-HD35T-F",
+      "size_raw": "240×220×18.5",
+      "axle_hint": "汉德桥35T · 前",
+      "brake_type": "鼓式",
+      "material_grade": "重载 · 待核",
+      "alt_codes": ["HD35T-F", "HANDE-F-240220", "OEM-SX-35T-F", "240×220×18.5"],
+      "code_map": [
+        {"code": "HANDE-F-240220", "source": "汉德/陕汽体系·工厂码", "note": "桥厂侧码"},
+        {"code": "OEM-SX-35T-F", "source": "整车厂侧码", "note": "与桥厂码不同，同片"},
+        {"code": "HD35T-F", "source": "后市场简码", "note": "跨体系对照"},
+        {"code": "240×220×18.5", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "22–30",
+      "report_id": "TR-2024-0350（占位）",
+      "history_note": "汉德 35T 前桥固定适配；客户报桥厂码或整车厂码都应落到同一片"
+    },
+    {
+      "master_id": "PAD-HD35T-R",
+      "size_raw": "240×240×18.5",
+      "axle_hint": "汉德桥35T · 后",
+      "brake_type": "鼓式",
+      "material_grade": "重载 · 待核",
+      "alt_codes": ["HD35T-R", "HANDE-R-240240", "240×240×18.5"],
+      "code_map": [
+        {"code": "HANDE-R-240240", "source": "汉德/陕汽体系·工厂码", "note": "桥厂侧码"},
+        {"code": "HD35T-R", "source": "后市场简码", "note": "跨体系对照"},
+        {"code": "240×240×18.5", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "23–31",
+      "report_id": "TR-2024-0351（占位）",
+      "history_note": "汉德 35T 后桥固定适配"
+    },
+    {
+      "master_id": "PAD-C6-FA",
+      "size_raw": "191×160×14/17",
+      "axle_hint": "杰狮C6 · 前 · A",
+      "brake_type": "鼓式",
+      "material_grade": "标准工况 · 待核",
+      "alt_codes": ["C6-FA-191", "JAC-C6-FA-191", "191×160×14/17"],
+      "code_map": [
+        {"code": "JAC-C6-FA-191", "source": "江淮体系", "note": "主机厂侧码"},
+        {"code": "C6-FA-191", "source": "后市场简码", "note": "跨体系对照"},
+        {"code": "191×160×14/17", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "13–19",
+      "report_id": "TR-2024-0402（占位）",
+      "history_note": "杰狮 C6 前 A；注意与冠隆册另一印刷尺寸区分"
+    },
+    {
+      "master_id": "PAD-C6-FB",
+      "size_raw": "230×160×8.8/17",
+      "axle_hint": "杰狮C6 · 前 · B",
+      "brake_type": "鼓式",
+      "material_grade": "标准工况 · 待核",
+      "alt_codes": ["C6-FB-230", "JAC-C6-FB-230", "230×160×8.8/17"],
+      "code_map": [
+        {"code": "JAC-C6-FB-230", "source": "江淮体系", "note": "主机厂侧码"},
+        {"code": "C6-FB-230", "source": "后市场简码", "note": "跨体系对照"},
+        {"code": "230×160×8.8/17", "source": "尺寸串", "note": "旧件量尺寸当码"}
+      ],
+      "price_range_usd": "13–19",
+      "report_id": "TR-2024-0403（占位）",
+      "history_note": "杰狮 C6 前 B"
+    }
+  ]
+}

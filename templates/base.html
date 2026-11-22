@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title or "BrakeBridge AI" }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% if mode == 'mobile' or request.args.get('mode') == 'mobile' %}mode-mobile{% endif %}">
+  {% if request.args.get('mode') != 'mobile' %}
+  <nav class="top-nav">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      BrakeBridge
+    </a>
+    <div class="nav-links">
+      <a href="/sourcing" class="{% if active == 'sourcing' %}active{% endif %}">拓客</a>
+      <a href="/inquiry" class="{% if active == 'inquiry' %}active{% endif %}">询盘</a>
+      <a href="/fitment" class="{% if active == 'fitment' %}active{% endif %}">速配</a>
+    </div>
+  </nav>
+  {% endif %}
+  <main class="main">
+    {% block content %}
+    <section class="home-panel">
+      <p class="eyebrow">冠英 · 制动片选型</p>
+      <h1>BrakeBridge AI</h1>
+      <p class="lead">拓客 · 询盘 · 车型速配。把产品册变成能当场答的工具。</p>
+      <a class="btn-primary" href="/fitment?q=天锦KR">打开车型速配</a>
+    </section>
+    {% endblock %}
+  </main>
+</body>
+</html>
