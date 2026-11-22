@@ -9,6 +9,7 @@ const router = useRouter()
 const route = useRoute()
 const username = ref('admin')
 const password = ref('')
+const showLoginHint = import.meta.env.VITE_PUBLIC_LOGIN_HINT === '1'
 const failure = ref('')
 const busy = ref(false)
 async function signIn() {
@@ -32,6 +33,10 @@ async function signIn() {
       <NFormItem label="用户名"><NInput v-model:value="username" :input-props="{ autocomplete: 'username', 'aria-label': '用户名' }" /></NFormItem>
       <NFormItem label="密码"><NInput v-model:value="password" type="password" show-password-on="click"
         :input-props="{ autocomplete: 'current-password', 'aria-label': '密码' }" /></NFormItem>
+      <p v-if="showLoginHint" class="login-hint">
+        <span>账号 <strong>admin</strong></span>
+        <span>密码 <strong>123456</strong></span>
+      </p>
       <p v-if="failure" class="notice error" role="alert">{{ failure }}</p>
       <NButton type="primary" block size="large" attr-type="submit" :loading="busy" :disabled="!username.trim() || !password">
         登录 <IconArrowRight :size="17" />
@@ -39,3 +44,18 @@ async function signIn() {
     </form>
   </main>
 </template>
+
+<style scoped>
+.login-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #eaf1fb;
+  color: #375475;
+  font-size: 13px;
+}
+.login-hint strong { color: #223e65; }
+</style>
