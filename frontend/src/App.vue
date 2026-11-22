@@ -1,23 +1,22 @@
 <script setup lang="ts">
-import { watch, ref } from 'vue'
+import { onMounted, onUnmounted, watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NConfigProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
-import { IconLayoutDashboard, IconBuildingStore, IconLogout, IconRouteAltLeft, IconSettings, IconMailFast, IconSpeakerphone, IconSteeringWheel } from '@tabler/icons-vue'
-import { IconMessageSearch } from '@tabler/icons-vue'
+import { NConfigProvider, NDrawer, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
+import { IconMenu2, IconRouteAltLeft } from '@tabler/icons-vue'
 import { auth, errorText, logout, readMeta, ui } from './api'
+import WorkspaceNavigation from './components/WorkspaceNavigation.vue'
 
 const route = useRoute()
 const router = useRouter()
 const failure = ref('')
-const nav = [
-  { to: '/dashboard', label: '总览', icon: IconLayoutDashboard },
-  { to: '/lead-inquiries', label: '询盘转化', icon: IconMailFast },
-  { to: '/fitment', label: '速配', icon: IconSteeringWheel, external: true },
-  { to: '/buyers', label: '客户名单', icon: IconBuildingStore },
-  { to: '/social', label: '社媒营销', icon: IconSpeakerphone },
-  { to: '/comment-desk', label: '线索承接', icon: IconMessageSearch },
-  { to: '/settings', label: '系统设置', icon: IconSettings },
-]
+const navigationOpen = ref(false)
+const mobileViewport = window.matchMedia('(max-width: 760px)')
+function onViewportChange(event: MediaQueryListEvent) {
+  if (!event.matches) navigationOpen.value = false
+}
+onMounted(() => mobileViewport.addEventListener('change', onViewportChange))
+onUnmounted(() => mobileViewport.removeEventListener('change', onViewportChange))
+watch(() => route.path, () => { navigationOpen.value = false })
 const theme = { common: { primaryColor: '#315dea', primaryColorHover: '#234ccd', primaryColorPressed: '#1b3ca6',
   primaryColorSuppl: '#315dea', placeholderColor: '#576b83', borderRadius: '9px', fontFamily: 'inherit' },
   DataTable: { thFontWeight: '600' }, Empty: { textColor: '#576b83' } }
@@ -40,27 +39,21 @@ async function signOut() {
       <RouterView v-if="route.path === '/login'" />
       <div v-else class="shell">
         <a class="skip" href="#main">跳到内容</a>
-        <aside class="sidebar glass">
-          <RouterLink class="brand" to="/dashboard">
-            <span class="logo"><IconRouteAltLeft :size="21" /></span>
-            <span><strong>BrakeBridge</strong><small>冠英外贸工作台</small></span>
+        <header class="mobile-topbar">
+          <button class="mobile-menu-button" type="button" aria-label="打开菜单"
+            aria-haspopup="dialog" :aria-expanded="navigationOpen" @click="navigationOpen = true">
+            <IconMenu2 :size="22" aria-hidden="true" />
+          </button>
+          <RouterLink class="brand mobile-brand" to="/dashboard">
+            <span class="logo"><IconRouteAltLeft :size="17" aria-hidden="true" /></span><strong>BrakeBridge</strong>
           </RouterLink>
-          <nav aria-label="主导航">
-            <template v-for="item in nav" :key="item.to">
-              <a v-if="item.external" :href="item.to">
-                <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
-              </a>
-              <RouterLink v-else :to="item.to">
-                <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
-              </RouterLink>
-            </template>
-          </nav>
-          <div class="side-account">
-            <span class="avatar">A</span>
-            <span><strong>{{ auth.user?.username }}</strong><small>管理员</small></span>
-            <button class="icon-button" type="button" aria-label="退出登录" @click="signOut"><IconLogout :size="17" /></button>
-          </div>
-        </aside>
+        </header>
+        <WorkspaceNavigation :username="auth.user?.username" @logout="signOut" />
+        <NDrawer v-model:show="navigationOpen" placement="left" width="min(85vw, 320px)"
+          class="workspace-nav-drawer" aria-label="工作台导航">
+          <WorkspaceNavigation drawer :username="auth.user?.username"
+            @navigate="navigationOpen = false" @close="navigationOpen = false" @logout="signOut" />
+        </NDrawer>
         <main id="main" class="main">
           <div v-if="failure" role="alert" class="notice error">{{ failure }}</div>
           <RouterView />

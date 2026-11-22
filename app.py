@@ -27,6 +27,9 @@ import lead_inquiries
 import research_agent
 import sales_agent
 import social_routes
+from features.fitment import fitment_bp
+from features.inquiry import inquiry_bp
+from features.sourcing import sourcing_bp
 import workspace
 from forms import BuyerImportForm, CommentForm, CommentImportForm
 from model_client import ModelUnavailable, ask_json, available as model_available
@@ -76,11 +79,8 @@ def create_app(config=None):
     register_routes(app)
     lead_routes.register(app, event_details)
     social_routes.register(app, event_details)
-    app.register_blueprint(comment_desk)
-    from features.fitment import fitment_bp
-    from features.inquiry import inquiry_bp
-    from features.sourcing import sourcing_bp
     app.register_blueprint(fitment_bp)
+    app.register_blueprint(comment_desk)
     app.register_blueprint(inquiry_bp)
     app.register_blueprint(sourcing_bp)
     return app
@@ -92,7 +92,7 @@ def register_routes(app):
     @app.errorhandler(CSRFError)
     def csrf_error(_error):
         if api_request():
-            return workspace.error("表单会话已过期，请刷新后重试。")
+            return jsonify(message="表单会话已过期，请刷新后重试。", fields={}, code="csrf_expired"), 400
         return "表单会话已过期，请刷新工作台后重试。", 400
 
     @app.errorhandler(HTTPException)

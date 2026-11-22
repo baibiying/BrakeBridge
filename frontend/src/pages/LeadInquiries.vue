@@ -2,7 +2,7 @@
 import { computed, h, nextTick, reactive, ref, watch, type HTMLAttributes } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NCard, NDataTable, NDrawer, NDrawerContent, NFormItem, NInput, NModal, NSelect, NSpin, NTabPane, NTabs, useMessage, type DataTableColumns } from 'naive-ui'
-import { IconArrowUpRight, IconBuildingStore, IconMail, IconPencil, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-vue'
+import { IconArrowUpRight, IconBuildingStore, IconMail, IconPencil, IconPlus, IconRefresh, IconSteeringWheel, IconTrash, IconUpload } from '@tabler/icons-vue'
 import { api, dateTime, errorText, options, query, safeUrl, submit } from '../api'
 import type { Connections, Intake, LeadBrief, LeadDetail, LeadList, PublicIdentity } from '../lead-types'
 import { leadTones } from '../lead-types'
@@ -327,6 +327,9 @@ const columns = computed<DataTableColumns<LeadBrief>>(() => [
           </div>
           <div class="inline-actions">
             <NButton size="small" @click="tab = 'follow'">安排跟进</NButton>
+            <NButton size="small" @click="router.push({ path: '/fitment', query: { inquiry: detail.inquiry.id } })">
+              <template #icon><IconSteeringWheel :size="15" /></template>车型速配
+            </NButton>
             <NButton size="small" :disabled="!recordFields.length" @click="editorOpen(true)"><template #icon><IconPencil :size="15" /></template>编辑</NButton>
             <NButton size="small" type="error" quaternary @click="popupOpen('delete')"><template #icon><IconTrash :size="15" /></template>删除</NButton>
           </div>

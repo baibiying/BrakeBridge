@@ -301,10 +301,12 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
     recent = news()
     refs = sources(selected or [item["id"] for item in recent[:3]])
     assets = social_assets.catalog() if use_images else []
+    model_failed = False
     if research_agent.settings()["configured"]:
         today = datetime.now(leads.ZONE).date()
         prompt = (
-            "为浙江冠英写一条国际商用车制动件社媒推广草稿。按语言输出 title 和 body 两个字符串，正文最多 2800 字。"
+            "按 language 指定的语言为浙江冠英写一条面向进口商的商用车制动件帖子。正文用两段自然短文，控制在 800 字符以内。"
+            "只返回单个 JSON 对象，字段为 title、body 和 asset_id。title 和 body 均为字符串。"
             "企业事实应来自资料；正文要让商用车制动件进口商或分销商知道下一步可提供哪些信息。"
             "结合真正相关的行业热点，无法核实就省略。严禁承诺未经核实的展位、参展、认证、适配、价格、交期。"
             "配图仅从素材中选一张与正文直接匹配的产品图，返回整数 asset_id；没有合适的图就返回 null。"
@@ -328,21 +330,22 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
             output, cited = research_agent.ask(prompt, {
                 "title": title, "original": body, "language": language, "sources": refs,
                 "verified_event": event, "素材": assets, "today": today.isoformat(),
-            }, web=search)
-        except research_agent.ResearchUnavailable as error:
-            raise ValueError(str(error)) from error
-        output["body"] = article_body(output.get("body"))
-        if not all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= limit
-                   for key, limit in (("title", 160), ("body", 2800))):
-            raise ValueError("销售 Agent 未返回有效的文章草稿，请重试。")
-        items = output.get("news", [])
-        if search and items:
-            verified = record_article_news(items, cited, today)
-            refs = list({item["url"]: item for item in [*refs, *verified]}.values())
-        asset_id = output.get("asset_id")
-        return {"title": output["title"].strip(), "body": output["body"].strip(), "refs": refs, "engine": "agent",
-                "asset_id": asset_id if type(asset_id) is int and any(item["id"] == asset_id for item in assets) else None}
-    if available() and not use_images:
+            }, web=search, output_budget=4200)
+            output["body"] = article_body(output.get("body"))
+            if not all(isinstance(output.get(key), str) and 0 < len(output[key].strip()) <= limit
+                       for key, limit in (("title", 160), ("body", 2800))):
+                raise research_agent.ResearchUnavailable("销售 Agent 未返回有效的文章草稿。")
+        except research_agent.ResearchUnavailable:
+            model_failed = True
+        else:
+            items = output.get("news", [])
+            if search and items:
+                verified = record_article_news(items, cited, today)
+                refs = list({item["url"]: item for item in [*refs, *verified]}.values())
+            asset_id = output.get("asset_id")
+            return {"title": output["title"].strip(), "body": output["body"].strip(), "refs": refs, "engine": "agent",
+                    "asset_id": asset_id if type(asset_id) is int and any(item["id"] == asset_id for item in assets) else None}
+    if available():
         try:
             output = ask_json(
                 "为冠英写一条可跨平台发布的商用车制动件推广短文。只返回 title 和 body 两个字符串。"
@@ -356,7 +359,8 @@ def generate_article(topic, language, title, body, selected, event, *, use_image
                 return {"title": output["title"].strip(), "body": output["body"].strip(), "refs": refs, "engine": "ai"}
         except ModelUnavailable:
             pass
-    return {"title": title, "body": body, "refs": refs, "engine": "preset"}
+        model_failed = True
+    return {"title": title, "body": body, "refs": refs, "engine": "preset", "model_failed": model_failed}
 
 
 def image_payload(upload):

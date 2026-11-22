@@ -264,6 +264,20 @@ class SocialWorkflowTest(unittest.TestCase):
             self.assertEqual((row["id"], row["state"], row["run_at"]),
                              (scheduled["batch_id"], "scheduled", social.utc_stamp(future)))
 
+    def test_reconnect_can_refresh_stale_csrf_without_changing_accounts(self):
+        path = "/api/social/verification/start"
+        with patch("social_verification.start", return_value={"state": "challenge", "image_ready": True}) as start:
+            stale = self.client.post(path, headers={"X-CSRFToken": "stale-token"})
+            self.assertEqual(stale.status_code, 400)
+            self.assertEqual(stale.json["code"], "csrf_expired")
+            start.assert_not_called()
+
+            session = self.client.get("/api/session").json
+            resumed = self.client.post(path, headers={"X-CSRFToken": session["csrf"]})
+            self.assertEqual(resumed.status_code, 200)
+            self.assertTrue(resumed.json["image_ready"])
+            start.assert_called_once_with(session["user"]["id"])
+
     def test_saved_vendor_account_exposes_only_mask_and_enables_verification(self):
         result = self.post("/verification/credentials", username="12345678901", password="fixture-password")
         self.assertEqual(result, {"configured": True, "account": "123•••901"})
@@ -316,6 +330,19 @@ class SocialWorkflowTest(unittest.TestCase):
         with patch("social.available", return_value=True), patch("social.ask_json", return_value={"title": "AI 标题", "body": "润色后正文"}):
             generated = self.post("/generate-article", language="zh", title="手写标题", body="手写正文")
         self.assertEqual((generated["title"], generated["body"], generated["engine"]), ("AI 标题", "润色后正文", "ai"))
+
+    def test_disconnected_workspace_keeps_local_tools_after_model_failure(self):
+        original = {"title": "展会邀请", "body": "欢迎查看制动件目录。"}
+        with patch("figeon.call", side_effect=AssertionError("Local tools must not use Figeon")), \
+             patch("social.research_agent.settings", return_value={"configured": True}), \
+             patch("social.research_agent.ask", side_effect=research_agent.ResearchUnavailable("模型暂不可用")), \
+             patch("social.available", return_value=False):
+            self.assertFalse(self.client.get("/api/social/figeon").json["connected"])
+            generated = self.post("/generate-article", **original, use_images="1")
+            self.assertTrue(generated["model_failed"])
+            self.assertEqual(generated["engine"], "preset")
+            self.assertEqual((generated["title"], generated["body"]), (original["title"], original["body"]))
+            self.post("/comments/demo")
 
     def test_sales_agent_grounding_photo_opt_in_and_saved_draft(self):
         image = bytes.fromhex("ffd8ff") + b"test-image"

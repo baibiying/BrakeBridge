@@ -34,7 +34,7 @@ def error(message, status=400, fields=None):
 def register(app):
     dist = Path(app.config["VUE_DIST"])
     public = {"session_status", "login_api", "login_page", "vue_assets", "static", "facebook_hook",
-              "fitment.fitment_home", "inquiry.inquiry_home", "sourcing.sourcing_home"}
+              "inquiry.inquiry_home", "sourcing.sourcing_home"}
 
     @app.before_request
     def require_user():
@@ -69,6 +69,7 @@ def register(app):
     @app.get("/buyers")
     @app.get("/settings")
     @app.get("/lead-inquiries")
+    @app.get("/fitment")
     @app.get("/social")
     @app.get("/social/scheduled")
     def workspace_page():

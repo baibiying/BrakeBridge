@@ -13,6 +13,7 @@ const router = createRouter({
     { path: '/buyers', component: () => import('./pages/Buyers.vue') },
     { path: '/inbox', redirect: to => ({ path: '/social', query: { ...to.query, tab: 'comments', source: 'history' } }) },
     { path: '/lead-inquiries', component: () => import('./pages/LeadInquiries.vue') },
+    { path: '/fitment', component: () => import('./pages/Fitment.vue') },
     { path: '/social', component: () => import('./pages/SocialMarketing.vue') },
     { path: '/social/scheduled', component: () => import('./pages/ScheduledPublishing.vue') },
     { path: '/comment-desk', component: () => import('./pages/CommentDesk.vue') },

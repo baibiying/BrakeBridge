@@ -4,6 +4,7 @@ import type { Counts, Labels, Meta } from './types'
 interface Session { user: { id: number; username: string } | null; csrf: string }
 export const auth = reactive<Session>({ user: null, csrf: '' })
 export const ui = reactive<{ meta: Meta | null }>({ meta: null })
+let pendingSession: Promise<void> | undefined
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly fields: Labels = {}) { super(message) }
@@ -13,24 +14,52 @@ export function errorText(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请重试。'
 }
 
+function redirectToLogin() {
+  auth.user = null
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login?next=' + encodeURIComponent(location.pathname + location.search))
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
-  if (init.body) headers.set('X-CSRFToken', auth.csrf)
-  const response = await fetch('/api' + path, { ...init, headers, credentials: 'same-origin' })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    if (response.status === 401 && path !== '/login') {
-      auth.user = null
-      if (window.location.pathname !== '/login') {
-        window.location.assign('/login?next=' + encodeURIComponent(location.pathname + location.search))
-      }
+  const changesData = ['POST', 'PUT', 'PATCH', 'DELETE'].includes((init.method ?? 'GET').toUpperCase())
+  const sentCsrf = auth.csrf
+  const originalUser = auth.user?.id
+  const send = async (csrf: string) => {
+    if (changesData) headers.set('X-CSRFToken', csrf)
+    const response = await fetch('/api' + path, { ...init, headers, credentials: 'same-origin' })
+    const data = await response.json().catch(() => ({}))
+    return { response, data }
+  }
+  let result = await send(sentCsrf)
+  if (changesData && result.response.status === 400 && result.data.code === 'csrf_expired'
+    && !(init.body instanceof ReadableStream)) {
+    // The server rejected the request before its handler ran.
+    if (auth.csrf === sentCsrf) await checkSession()
+    if (path !== '/login' && !auth.user) {
+      redirectToLogin()
+      throw new ApiError('工作台登录已过期，请重新登录。', 401)
     }
+    if (path !== '/login' && originalUser !== undefined && auth.user?.id !== originalUser) {
+      throw new ApiError('工作台账号已切换，请刷新页面后重试。', 409)
+    }
+    result = await send(auth.csrf)
+  }
+  const { response, data } = result
+  if (!response.ok) {
+    if (response.status === 401 && path !== '/login') redirectToLogin()
     throw new ApiError(data.message || '请求失败，请重试。', response.status, data.fields)
   }
   return data as T
 }
 
-export async function checkSession() { Object.assign(auth, await api<Session>('/session')) }
+export function checkSession() {
+  pendingSession ??= api<Session>('/session')
+    .then(session => { Object.assign(auth, session) })
+    .finally(() => { pendingSession = undefined })
+  return pendingSession
+}
 export async function login(username: string, password: string) {
   Object.assign(auth, await api<Session>('/login', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),

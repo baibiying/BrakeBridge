@@ -10,9 +10,9 @@ const browser = await chromium.launch({ headless: true, timeout: 12000, ...(exis
 const cli = createInterface({ input: process.stdin, crlfDelay: Infinity })
 
 async function showChallenge(page, message) {
-  await page.getByPlaceholder('请输入验证码').waitFor({ state: 'visible', timeout: 9000 })
   const handle = await page.waitForFunction(() => {
     const input = [...document.querySelectorAll('input')].find(item => item.placeholder === '请输入验证码')
+    if (!input?.getClientRects().length) return false
     for (let parent = input?.parentElement, level = 0; parent && level < 4; parent = parent.parentElement, level++) {
       const matches = [...parent.querySelectorAll('img,canvas')].filter(el => {
         const { width, height } = el.getBoundingClientRect()
@@ -26,8 +26,8 @@ async function showChallenge(page, message) {
       }
     }
     return false
-  }, undefined, { timeout: 10000 })
-  const snapshot = await page.screenshot({ clip: await handle.jsonValue(), timeout: 4500 })
+  }, undefined, { timeout: 26000 })
+  const snapshot = await page.screenshot({ clip: await handle.jsonValue(), timeout: 7500 })
   send({ state: 'challenge', message, image: snapshot.toString('base64') })
 }
 
@@ -45,7 +45,7 @@ try {
     await route.abort('blockedbyclient')
   })
   const page = await context.newPage()
-  await page.goto(adminOrigin + '/#/login', { waitUntil: 'domcontentloaded', timeout: 17000 })
+  await page.goto(adminOrigin + '/#/login', { waitUntil: 'commit', timeout: 17000 })
   await showChallenge(page, '请由管理员输入当前图中的字符。')
 
   for await (const line of cli) {

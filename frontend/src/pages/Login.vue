@@ -18,7 +18,7 @@ async function signIn() {
     if (!auth.csrf) await checkSession()
     await login(username.value, password.value)
     const next = typeof route.query.next === 'string' ? route.query.next : ''
-    await router.replace(/^\/(dashboard|buyers|inbox|settings|lead-inquiries|social)(?:\?|$)/.test(next) ? next : '/dashboard')
+    await router.replace(/^\/(dashboard|buyers|inbox|settings|lead-inquiries|social|fitment|comment-desk)(?:\?|$)/.test(next) ? next : '/dashboard')
   } catch (error) { failure.value = errorText(error) }
   finally { busy.value = false }
 }
