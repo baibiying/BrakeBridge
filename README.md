@@ -2,7 +2,7 @@
 
 面向商用车制动件外贸销售，将买家筛选、询盘跟进、线索承接、车型速配和社媒营销放进同一个工作台。
 
-**公网体验** [打开 BrakeBridge](https://bb.supermans.top/login) · 账号 **admin** · 密码 **123456**
+**线上环境** 项目部署在 [bb.Supermans.top](https://bb.supermans.top/login)。登录账号 **admin**，密码 **123456**。
 
 ## 主要功能
 
